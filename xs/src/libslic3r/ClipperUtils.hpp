@@ -19,7 +19,7 @@ namespace Slic3r {
 //-----------------------------------------------------------
 // legacy code from Clipper documentation
 void AddOuterPolyNodeToExPolygons(ClipperLib::PolyNode& polynode, Slic3r::ExPolygons& expolygons);
-void PolyTreeToExPolygons(ClipperLib::PolyTree& polytree, Slic3r::ExPolygons& expolygons, bool eraseOutput = true);
+void PolyTreeToExPolygons(ClipperLib::PolyTree& polytree, Slic3r::ExPolygons* expolygons, bool eraseOutput = true);
 //-----------------------------------------------------------
 
 void Slic3rMultiPoint_to_ClipperPath(const Slic3r::MultiPoint &input, ClipperLib::Path* output);
