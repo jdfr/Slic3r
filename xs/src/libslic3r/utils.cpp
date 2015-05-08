@@ -1,5 +1,9 @@
 #include <xsinit.h>
 
+#ifndef SLIC3RXS
+#include <stdio.h>
+#endif
+
 void
 confess_at(const char *file, int line, const char *func,
             const char *pat, ...)
@@ -24,5 +28,10 @@ confess_at(const char *file, int line, const char *func,
      call_pv("Carp::confess", G_DISCARD);
      FREETMPS;
      LEAVE;
+    #else
+      va_list args;
+      printf("Error in function %s at %s:%d: ", func, file, line);
+      vprintf(pat, args);
+      printf("\n");
     #endif
 }

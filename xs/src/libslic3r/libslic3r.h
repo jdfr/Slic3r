@@ -31,8 +31,12 @@ enum Axis { X, Y, Z };
 }
 using namespace Slic3r;
 
+#include <string.h>
+#define __FILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
+
 /* Implementation of CONFESS("foo"): */
-#define CONFESS(...) confess_at(__FILE__, __LINE__, __func__, __VA_ARGS__)
+#define CONFESS(...) confess_at(__FILENAME__, __LINE__, __func__, __VA_ARGS__)
+//#define CONFESS(...) confess_at(__FILE__, __LINE__, __func__, __VA_ARGS__)
 void confess_at(const char *file, int line, const char *func, const char *pat, ...);
 /* End implementation of CONFESS("foo"): */
 
