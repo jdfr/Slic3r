@@ -20,9 +20,9 @@ void AddOuterPolyNodeToExPolygons(ClipperLib::PolyNode& polynode, Slic3r::ExPoly
   }
 }
  
-void PolyTreeToExPolygons(ClipperLib::PolyTree& polytree, Slic3r::ExPolygons* expolygons)
+void PolyTreeToExPolygons(ClipperLib::PolyTree& polytree, Slic3r::ExPolygons* expolygons, bool eraseOutput)
 {
-  expolygons->clear();
+  if (eraseOutput) expolygons->clear();
   for (int i = 0; i < polytree.ChildCount(); ++i)
     AddOuterPolyNodeToExPolygons(*polytree.Childs[i], expolygons);
 }
@@ -52,7 +52,7 @@ ClipperPaths_to_Slic3rMultiPoints(const ClipperLib::Paths &input, T* output)
 }
 
 void
-ClipperPaths_to_Slic3rExPolygons(const ClipperLib::Paths &input, Slic3r::ExPolygons* output)
+ClipperPaths_to_Slic3rExPolygons(const ClipperLib::Paths &input, Slic3r::ExPolygons* output, bool eraseOutput)
 {
     // init Clipper
     ClipperLib::Clipper clipper;
@@ -64,8 +64,8 @@ ClipperPaths_to_Slic3rExPolygons(const ClipperLib::Paths &input, Slic3r::ExPolyg
     clipper.Execute(ClipperLib::ctUnion, polytree, ClipperLib::pftEvenOdd, ClipperLib::pftEvenOdd);  // offset results work with both EvenOdd and NonZero
     
     // write to ExPolygons object
-    output->clear();
-    PolyTreeToExPolygons(polytree, output);
+    if (eraseOutput) output->clear();
+    PolyTreeToExPolygons(polytree, output, eraseOutput);
 }
 
 void
@@ -191,9 +191,9 @@ offset(const Slic3r::Surface &surface, Slic3r::Surfaces* retval, const float del
     Slic3r::ExPolygons expp;
     offset(surface.expolygon, &expp, delta, scale, joinType, miterLimit);
     
-    // clone the input surface for each expolygon we got
     retval->clear();
     retval->reserve(expp.size());
+    // clone the input surface for each expolygon we got
     for (ExPolygons::iterator it = expp.begin(); it != expp.end(); ++it) {
         Surface s = surface;  // clone
         s.expolygon = *it;

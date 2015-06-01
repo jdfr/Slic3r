@@ -19,7 +19,7 @@ namespace Slic3r {
 //-----------------------------------------------------------
 // legacy code from Clipper documentation
 void AddOuterPolyNodeToExPolygons(ClipperLib::PolyNode& polynode, Slic3r::ExPolygons& expolygons);
-void PolyTreeToExPolygons(ClipperLib::PolyTree& polytree, Slic3r::ExPolygons& expolygons);
+void PolyTreeToExPolygons(ClipperLib::PolyTree& polytree, Slic3r::ExPolygons& expolygons, bool eraseOutput = true);
 //-----------------------------------------------------------
 
 void Slic3rMultiPoint_to_ClipperPath(const Slic3r::MultiPoint &input, ClipperLib::Path* output);
@@ -29,7 +29,7 @@ template <class T>
 void ClipperPath_to_Slic3rMultiPoint(const ClipperLib::Path &input, T* output);
 template <class T>
 void ClipperPaths_to_Slic3rMultiPoints(const ClipperLib::Paths &input, T* output);
-void ClipperPaths_to_Slic3rExPolygons(const ClipperLib::Paths &input, Slic3r::ExPolygons* output);
+void ClipperPaths_to_Slic3rExPolygons(const ClipperLib::Paths &input, Slic3r::ExPolygons* output, bool eraseOutput = true);
 
 void scaleClipperPolygons(ClipperLib::Paths &polygons, const double scale);
 
@@ -87,10 +87,6 @@ void _clipper(ClipperLib::ClipType clipType, const Slic3r::Polygons &subject,
     const Slic3r::Polygons &clip, Slic3r::Polygons* retval, bool safety_offset_);
 void _clipper(ClipperLib::ClipType clipType, const Slic3r::Polygons &subject, 
     const Slic3r::Polygons &clip, Slic3r::ExPolygons* retval, bool safety_offset_);
-void _clipper(ClipperLib::ClipType clipType, const Slic3r::Polylines &subject, 
-    const Slic3r::Polygons &clip, Slic3r::Polylines* retval);
-void _clipper(ClipperLib::ClipType clipType, const Slic3r::Lines &subject, 
-    const Slic3r::Polygons &clip, Slic3r::Lines* retval);
 
 template <class SubjectType, class ResultType>
 void diff(const SubjectType &subject, const Slic3r::Polygons &clip, ResultType* retval, bool safety_offset_ = false);
