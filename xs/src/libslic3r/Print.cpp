@@ -5,6 +5,8 @@
 #include "Geometry.hpp"
 #include "SupportMaterial.hpp"
 #include <algorithm>
+#include <stdio.h>
+#include "ClipperUtils.hpp"
 
 namespace Slic3r {
 
@@ -51,7 +53,8 @@ template class PrintState<PrintObjectStep>;
 
 Print::Print()
 :   total_used_filament(0),
-    total_extruded_volume(0)
+    total_extruded_volume(0),
+    useoutputpath(false)
 {
 }
 
@@ -60,6 +63,25 @@ Print::~Print()
     clear_objects();
     clear_regions();
 }
+
+bool
+Print::useOutputPath()
+{
+  return useoutputpath;
+}
+
+std::string
+Print::getOutputPath() {
+  return outputpath;
+}
+
+void
+Print::setOutputPath(std::string out)
+{
+  useoutputpath=true;
+  outputpath=out;
+}
+
 
 void
 Print::clear_objects()
@@ -104,7 +126,9 @@ Print::reload_object(size_t idx)
     // collect all current model objects
     ModelObjectPtrs model_objects;
     FOREACH_OBJECT(this, object) {
+      if (((*object)->model_object())!=NULL) {
         model_objects.push_back((*object)->model_object());
+      }
     }
     
     // remove our print objects
@@ -377,6 +401,82 @@ Print::max_allowed_layer_height() const
     return *std::max_element(nozzle_diameter.begin(), nozzle_diameter.end());
 }
 
+void
+Print::add_print_from_slices(std::string slicesInputFile)
+{
+    ClipperLib::cInt numz, numlayers, numpaths, numpoints;
+    int count, lc;
+    double height, print_z, slice_z, minz, maxz;
+    BoundingBoxf3 bb;
+    ClipperLib::Paths paths;
+    ExPolygons expolygons;
+    //prepare object without proper bb
+    PrintObject* o = new PrintObject(this, NULL, bb);
+    bb.min.x = bb.min.y = bb.min.z =  INFINITY;
+    bb.max.x = bb.max.y = bb.max.z = -INFINITY;
+    PrintRegion* printregion = this->add_region();
+    //read paths file (a series of layers)
+    FILE  *f = fopen(slicesInputFile.c_str(), "rb");
+    count = fread(&numlayers, sizeof(ClipperLib::cInt), 1, f);     if (count!=1) CONFESS("could not read path file!");
+    for (int i=0;i<numlayers; i++) {
+      ///read layer (a series of paths)
+      count = fread(&numz,  sizeof(ClipperLib::cInt), 1, f);       if (count!=1) CONFESS("could not read path file!");
+                                                                   if (numz!=3)  CONFESS("SERIALIZED PATHS MUST INCLUDE 3 Z VALUES TO BE IMPORTED INTO SLIC3R!");
+      count = fread(&height,  sizeof(double), 1, f);               if (count!=1) CONFESS("could not read path file!");
+      count = fread(&print_z, sizeof(double), 1, f);               if (count!=1) CONFESS("could not read path file!");
+      count = fread(&slice_z, sizeof(double), 1, f);               if (count!=1) CONFESS("could not read path file!");
+      minz  = print_z-height;
+      maxz  = print_z;
+      if (minz<bb.min.z) bb.min.z = minz;
+      if (maxz>bb.max.z) bb.max.z = maxz;
+      count = fread(&numpaths, sizeof(ClipperLib::cInt), 1, f);    if (count!=1) CONFESS("could not read path file!");
+      paths.clear();
+      paths.resize(numpaths);
+      for (ClipperLib::Paths::iterator pp = paths.begin(); pp != paths.end(); ++pp) {
+        //read path (a series of points)
+        count = fread(&numpoints, sizeof(ClipperLib::cInt), 1, f); if (count!=1) CONFESS("could not read path file!");
+        pp->clear();
+        pp->resize(numpoints);
+        for (ClipperLib::Path::iterator p = pp->begin(); p != pp->end(); ++p) {
+          //read point
+          count = fread(&p->X, sizeof(ClipperLib::cInt), 1, f);    if (count!=1) CONFESS("could not read path file!");
+          count = fread(&p->Y, sizeof(ClipperLib::cInt), 1, f);    if (count!=1) CONFESS("could not read path file!");
+          if (p->X<bb.min.x) bb.min.x = p->X;
+          if (p->X>bb.max.x) bb.max.x = p->X;
+          if (p->Y<bb.min.y) bb.min.y = p->Y;
+          if (p->Y>bb.max.y) bb.max.y = p->Y;
+        }
+      }
+      //populate the layer from the file contents
+      ClipperPaths_to_Slic3rExPolygons(paths, &expolygons);
+      Layer * layer = o->add_layer(i, height, print_z, slice_z);
+      if ((lc=o->layer_count())>=2) {
+        o->get_layer(lc-2)->upper_layer = o->get_layer(lc-1);
+        o->get_layer(lc-1)->lower_layer = o->get_layer(lc-2);
+      }
+      LayerRegion* layerregion = layer->add_region(printregion);
+      for (ExPolygons::iterator exp = expolygons.begin(); exp != expolygons.end(); ++exp) {
+        layerregion->slices.surfaces.push_back(Surface(stInternal, *exp));
+      }
+    }
+    fclose(f);
+    bb.min.x = unscale(bb.min.x);
+    bb.min.y = unscale(bb.min.y);
+    bb.max.x = unscale(bb.max.x);
+    bb.max.y = unscale(bb.max.y);
+    o->set_modobj_bbox(bb);
+    PrintRegionConfig config = this->default_region_config;
+    printregion->config.apply(config);
+    //region_id = this->regions.size() - 1;
+    // assign volume to region
+    //o->add_region_volume(region_id, volume_id);
+
+    // initialize and add new print object
+    objects.push_back(o);
+    // apply config to print object
+    o->config.apply(this->default_object_config);
+}
+
 /*  Caller is responsible for supplying models whose objects don't collide
     and have explicit instance positions */
 void
@@ -469,7 +569,7 @@ Print::apply_config(DynamicPrintConfig config)
         new_config.apply(config, true);
         
         // we override the new config with object-specific options
-        {
+        if ((*obj_ptr)->model_object()!=NULL) {
             DynamicPrintConfig model_object_config = (*obj_ptr)->model_object()->config;
             model_object_config.normalize();
             new_config.apply(model_object_config, true);
@@ -500,6 +600,7 @@ Print::apply_config(DynamicPrintConfig config)
         FOREACH_OBJECT(this, it_o) {
             PrintObject* object = *it_o;
             
+            if (object->model_object()==NULL) continue;
             std::vector<int> &region_volumes = object->region_volumes[region_id];
             for (std::vector<int>::const_iterator volume_id = region_volumes.begin(); volume_id != region_volumes.end(); ++volume_id) {
                 ModelVolume* volume = object->model_object()->volumes.at(*volume_id);
@@ -585,6 +686,8 @@ Print::validate() const
             Polygons a;
             FOREACH_OBJECT(this, i_object) {
                 PrintObject* object = *i_object;
+                
+                if (object->model_object()==NULL) continue;
                 
                 /*  get convex hull of all meshes assigned to this print object
                     (this is the same as model_object()->raw_mesh.convex_hull()

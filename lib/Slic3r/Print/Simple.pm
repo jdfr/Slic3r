@@ -77,6 +77,14 @@ sub set_model {
     }
 }
 
+sub set_paths_file {
+    my ($self, $filepath) = @_;
+    # make method idempotent so that the object is reusable
+    $self->_print->clear_objects;
+    $self->_print->add_print_from_slices($filepath);
+    $self->_print->setOutputPath($filepath);
+}
+
 sub _before_export {
     my ($self) = @_;
     

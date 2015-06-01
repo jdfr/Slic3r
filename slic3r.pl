@@ -36,6 +36,7 @@ my %cli_options = ();
         'gui-mode=s'            => \$opt{gui_mode},
         'datadir=s'             => \$opt{datadir},
         'export-svg'            => \$opt{export_svg},
+        'import-paths=s'        => \$opt{import_paths},
         'merge|m'               => \$opt{merge},
         'repair'                => \$opt{repair},
         'cut=f'                 => \$opt{cut},
@@ -170,6 +171,34 @@ if (@ARGV) {  # slicing from command line
                 Slic3r::Format::STL->write_file($output_file, $new_mesh, binary => 1);
             }
         }
+        exit;
+    }
+    
+    if ($opt{import_paths}) {
+        my $inputpathsfile = Slic3r::decode_path($opt{import_paths});
+        
+        my $sprint = Slic3r::Print::Simple->new(
+            status_cb       => sub {
+                my ($percent, $message) = @_;
+                printf "=> %s\n", $message;
+            },
+            output_file     => $opt{output},
+        );
+        $sprint->apply_config($config);
+        $sprint->set_paths_file($inputpathsfile);
+        
+        my $t0 = [gettimeofday];
+        $sprint->export_gcode;
+        
+        # output some statistics
+        {
+            my $duration = tv_interval($t0);
+            printf "Done. Process took %d minutes and %.3f seconds\n", 
+                int($duration/60), ($duration - int($duration/60)*60);  # % truncates to integer
+        }
+        printf "Filament required: %.1fmm (%.1fcm3)\n",
+            $sprint->total_used_filament, $sprint->total_extruded_volume/1000;
+        
         exit;
     }
     

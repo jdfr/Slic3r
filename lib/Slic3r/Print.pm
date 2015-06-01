@@ -415,7 +415,12 @@ sub expanded_output_filepath {
     my ($path) = @_;
     
     return undef if !@{$self->objects};
-    my $input_file = first { defined $_ } map $_->model_object->input_file, @{$self->objects};
+    my $input_file;
+    if ($self->useOutputPath) {
+      $input_file = $self->getOutputPath;
+    } else {
+      $input_file = first { defined $_ } map $_->model_object->input_file, @{$self->objects};
+    }
     return undef if !defined $input_file;
     
     my $filename = my $filename_base = basename($input_file);
@@ -426,9 +431,15 @@ sub expanded_output_filepath {
     $self->placeholder_parser->set(input_filename_base => $filename_base);
     
     # set other variables from model object
+    if ($self->useOutputPath) {
+    $self->placeholder_parser->set_multiple(
+        scale => [ map 1.0 * 100 . "%", @{$self->objects} ],
+    );
+    } else {
     $self->placeholder_parser->set_multiple(
         scale => [ map $_->model_object->instances->[0]->scaling_factor * 100 . "%", @{$self->objects} ],
     );
+    }
     
     if ($path && -d $path) {
         # if output path is an existing directory, we take that and append

@@ -41,7 +41,7 @@ sub slice {
     $self->print->status_cb->(10, "Processing triangulated mesh");
     
     # init layers
-    {
+    if (!$self->no_model_object) {
         $self->clear_layers;
     
         # make layers taking custom heights into account
@@ -138,6 +138,8 @@ sub slice {
     # get array of Z coordinates for slicing
     my @z = map $_->slice_z, @{$self->layers};
     
+    if (!$self->no_model_object) {
+    
     # slice all non-modifier volumes
     for my $region_id (0..($self->region_count - 1)) {
         my $expolygons_by_layer = $self->_slice_region($region_id, \@z, 0);
@@ -191,6 +193,8 @@ sub slice {
                 }
             }
         }
+    }
+    
     }
     
     # remove last layer(s) if empty

@@ -102,8 +102,11 @@ class PrintObject
     // TODO: Fill* fill_maker        => (is => 'lazy');
     PrintState<PrintObjectStep> state;
     
+    std::string slicesFile;
+    
     Print* print();
     ModelObject* model_object();
+    bool no_model_object();
     
     Points copies() const;
     bool add_copy(const Pointf &point);
@@ -112,6 +115,7 @@ class PrintObject
     bool set_copies(const Points &points);
     bool reload_model_instances();
     BoundingBox bounding_box() const;
+    void set_modobj_bbox(const BoundingBoxf3 &modobj_bbox);
     
     // adds region_id, too, if necessary
     void add_region_volume(int region_id, int volume_id);
@@ -172,6 +176,13 @@ class Print
     Print();
     ~Print();
     
+    bool useoutputpath;
+    std::string outputpath;
+    
+    bool useOutputPath();
+    std::string getOutputPath();
+    void setOutputPath(std::string out);
+    
     // methods for handling objects
     void clear_objects();
     PrintObject* get_object(size_t idx);
@@ -189,6 +200,7 @@ class Print
     bool invalidate_all_steps();
     bool step_done(PrintObjectStep step) const;
     
+    void add_print_from_slices(std::string slicesInputFile);
     void add_model_object(ModelObject* model_object, int idx = -1);
     bool apply_config(DynamicPrintConfig config);
     bool has_infinite_skirt() const;
