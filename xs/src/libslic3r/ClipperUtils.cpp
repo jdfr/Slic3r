@@ -89,6 +89,23 @@ Slic3rMultiPoints_to_ClipperPaths(const T &input, ClipperLib::Paths* output)
     }
 }
 
+void Add_Slic3rExPolygon_to_ClipperPaths(const Slic3r::ExPolygon &input, ClipperLib::Paths* output) {
+    ClipperLib::Path p;
+    Slic3rMultiPoint_to_ClipperPath(input.contour, &p);
+    output->push_back(p);
+    for (Slic3r::Polygons::const_iterator it = input.holes.begin(); it != input.holes.end(); ++it) {
+        Slic3rMultiPoint_to_ClipperPath(*it, &p);
+        output->push_back(p);
+    }
+}
+
+void Slic3rExPolygons_to_ClipperPaths(const Slic3r::ExPolygons &input, ClipperLib::Paths* output) {
+    output->clear();
+    for (Slic3r::ExPolygons::const_iterator it = input.begin(); it != input.end(); ++it) {
+      Add_Slic3rExPolygon_to_ClipperPaths(*it, output);
+    }
+}
+
 void
 scaleClipperPolygons(ClipperLib::Paths &polygons, const double scale)
 {

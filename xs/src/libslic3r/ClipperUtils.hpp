@@ -27,6 +27,7 @@ template <class T>
 void Slic3rMultiPoints_to_ClipperPaths(const T &input, ClipperLib::Paths* output);
 template <class T>
 void ClipperPath_to_Slic3rMultiPoint(const ClipperLib::Path &input, T* output);
+void Slic3rExPolygons_to_ClipperPaths(const Slic3r::ExPolygons &input, ClipperLib::Paths* output);
 template <class T>
 void ClipperPaths_to_Slic3rMultiPoints(const ClipperLib::Paths &input, T* output);
 void ClipperPaths_to_Slic3rExPolygons(const ClipperLib::Paths &input, Slic3r::ExPolygons* output, bool eraseOutput = true);
