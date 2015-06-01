@@ -53,6 +53,7 @@ _constant()
 
     Ref<Print> print();
     Ref<ModelObject> model_object();
+    bool no_model_object();
     Ref<StaticPrintConfig> config()
         %code%{ RETVAL = &THIS->config; %};
     Points copies();
@@ -133,6 +134,9 @@ _constant()
     Ref<ExtrusionEntityCollection> brim()
         %code%{ RETVAL = &THIS->brim; %};
 
+    bool useOutputPath();
+    std::string getOutputPath();
+    void setOutputPath(std::string out);
     PrintObjectPtrs* objects()
         %code%{ RETVAL = &THIS->objects; %};
     void clear_objects();
@@ -213,6 +217,7 @@ _constant()
     bool has_support_material() const;
     void auto_assign_extruders(ModelObject* model_object);
     
+    void add_print_from_slices(std::string slicesInputFile);
     void add_model_object(ModelObject* model_object, int idx = -1);
     bool apply_config(DynamicPrintConfig* config)
         %code%{ RETVAL = THIS->apply_config(*config); %};

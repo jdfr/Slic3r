@@ -10,6 +10,20 @@ PrintObject::PrintObject(Print* print, ModelObject* model_object, const Bounding
     _print(print),
     _model_object(model_object)
 {
+    set_modobj_bbox(modobj_bbox);
+    
+    this->reload_model_instances();
+    if (model_object==NULL) return; //in this case we will be adding objects sliced outside slic3r
+    this->layer_height_ranges = model_object->layer_height_ranges;
+}
+
+PrintObject::~PrintObject()
+{
+}
+
+void
+PrintObject::set_modobj_bbox(const BoundingBoxf3 &modobj_bbox)
+{
     // Compute the translation to be applied to our meshes so that we work with smaller coordinates
     {
         // Translate meshes so that our toolpath generation algorithms work with smaller
@@ -25,14 +39,8 @@ PrintObject::PrintObject(Print* print, ModelObject* model_object, const Bounding
         Pointf3 size = modobj_bbox.size();
         this->size = Point3(scale_(size.x), scale_(size.y), scale_(size.z));
     }
-    
-    this->reload_model_instances();
-    this->layer_height_ranges = model_object->layer_height_ranges;
 }
 
-PrintObject::~PrintObject()
-{
-}
 
 Print*
 PrintObject::print()
@@ -45,6 +53,12 @@ PrintObject::model_object()
 {
     return this->_model_object;
 }
+
+bool PrintObject::no_model_object()
+{
+    return this->_model_object==NULL;
+}
+
 
 Points
 PrintObject::copies() const
@@ -104,7 +118,9 @@ bool
 PrintObject::reload_model_instances()
 {
     Points copies;
-    for (ModelInstancePtrs::const_iterator i = this->_model_object->instances.begin(); i != this->_model_object->instances.end(); ++i) {
+    if (this->_model_object==NULL) {
+      copies.push_back(Point::new_scale(0, 0));
+    } else for (ModelInstancePtrs::const_iterator i = this->_model_object->instances.begin(); i != this->_model_object->instances.end(); ++i) {
         copies.push_back(Point::new_scale((*i)->offset.x, (*i)->offset.y));
     }
     return this->set_copies(copies);
