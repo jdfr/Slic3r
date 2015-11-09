@@ -1,0 +1,62 @@
+CMAKE_MINIMUM_REQUIRED(VERSION 2.8.0)
+
+set(SRC ${CMAKE_CURRENT_SOURCE_DIR})
+
+if(EXISTS ${SRC}/../clipper)
+  set(CLIPPER_BASE_DIR ${SRC}/../clipper)
+else()
+  #as far as I understand, this will enable users of cmake-gui to set this directory
+  set(CLIPPER_BASE_DIR "" CACHE PATH "tweaked clipper/iopaths base dir")
+endif()
+
+set(clipper_include_dir ${CLIPPER_BASE_DIR}/clipper)
+set(iopaths_include_dir ${CLIPPER_BASE_DIR}/iopaths)
+set(clipper_source ${clipper_include_dir}/clipper.cpp)
+set(clipper_header ${clipper_include_dir}/clipper.hpp)
+set(iopaths_source ${iopaths_include_dir}/iopaths.cpp)
+set(iopaths_header ${iopaths_include_dir}/iopaths.hpp)
+set(common_header  ${iopaths_include_dir}/common.hpp)
+
+if(NOT EXISTS ${clipper_source} OR NOT EXISTS ${iopaths_source} OR NOT EXISTS ${clipper_header} OR NOT EXISTS ${iopaths_header} OR NOT EXISTS ${common_header})
+  message(FATAL_ERROR "tweaked clipper/iopaths base dir does not contain the expected files and directories!!!")
+endif()
+
+PROJECT(slic3r)
+
+SET(CMAKE_BUILD_TYPE "Release" CACHE STRING "Release type")
+
+#add compiler flags from Slicer/xs/Build.PL (HAS_BOOL and SLIC3RXS
+#are specific to the perl build, so they are not included here)
+# _GLIBCXX_USE_C99 : to get the long long type for g++
+# NOGDI            : prevents inclusion of wingdi.h which defines functions Polygon() and Polyline() in global namespace
+ADD_DEFINITIONS(-D_GLIBCXX_USE_C99 -DNOGDI)# -DDEBUG_IOPATHS)
+
+option(FULLLIBRARY       "include all sources in the library" OFF)
+
+set(MASK "/*.c*") #*.c, *.cc, *.cpp
+file(GLOB_RECURSE poly2tri_c  "${SRC}/poly2tri${MASK}") 
+file(GLOB_RECURSE admesh_c    "${SRC}/admesh${MASK}")
+set(slicer_source "${SRC}/slicer.cpp")
+if (FULLLIBRARY)
+  file(GLOB_RECURSE slic3r_c "${SRC}/libslic3r${MASK}")
+else()
+  #include just the sources we need to make it compile. Much code could be culled but for now we don't bother to edit the files
+  set (selectedfiles BoundingBox ClipperUtils ExPolygon ExPolygonCollection Geometry Line MultiPoint Point Polygon Polyline PolylineCollection TriangleMesh utils polypartition)
+  set(slic3r_c "")
+  foreach(f ${selectedfiles})
+    list(APPEND slic3r_c ${SRC}/libslic3r/${f}.cpp)
+  endforeach()
+endif()
+
+set(slic3r_sources ${admesh_c} ${slic3r_c} ${poly2tri_c})
+
+set (INCLUDE_DIRS ${clipper_include_dir} ${iopaths_include_dir} ${SRC} ${SRC}/admesh ${SRC}/.. ${SRC}/libslic3r ${SRC}/poly2tri)
+include_directories(${INCLUDE_DIRS})
+
+ADD_EXECUTABLE(slicer ${slic3r_sources} ${slicer_source} ${clipper_source} ${iopaths_source})
+
+if(${MINGW})
+  file(GLOB DLL_FILES ${SRC}/../mingwdlls/*.dll)
+  file(COPY ${DLL_FILES} DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+endif()
+
