@@ -38,6 +38,7 @@ file(GLOB_RECURSE poly2tri_c  "${SRC}/poly2tri${MASK}")
 file(GLOB_RECURSE admesh_c    "${SRC}/admesh${MASK}")
 set(slicer_source "${SRC}/slicer.cpp")
 set(bb_source "${SRC}/bb.cpp")
+set(zpos_source "${SRC}/zpos.cpp")
 if (FULLLIBRARY)
   file(GLOB_RECURSE slic3r_c "${SRC}/libslic3r${MASK}")
 else()
@@ -61,6 +62,9 @@ target_link_libraries(slicer slic3r)
 
 ADD_EXECUTABLE(bb ${bb_source})
 target_link_libraries(bb slic3r)
+
+ADD_EXECUTABLE(zpos ${zpos_source})
+target_link_libraries(zpos slic3r)
 
 if(${MINGW})
   file(GLOB DLL_FILES ${SRC}/../mingwdlls/*.dll)
