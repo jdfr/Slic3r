@@ -37,6 +37,7 @@ set(MASK "/*.c*") #*.c, *.cc, *.cpp
 file(GLOB_RECURSE poly2tri_c  "${SRC}/poly2tri${MASK}") 
 file(GLOB_RECURSE admesh_c    "${SRC}/admesh${MASK}")
 set(slicer_source "${SRC}/slicer.cpp")
+set(bb_source "${SRC}/bb.cpp")
 if (FULLLIBRARY)
   file(GLOB_RECURSE slic3r_c "${SRC}/libslic3r${MASK}")
 else()
@@ -53,7 +54,13 @@ set(slic3r_sources ${admesh_c} ${slic3r_c} ${poly2tri_c})
 set (INCLUDE_DIRS ${clipper_include_dir} ${iopaths_include_dir} ${SRC} ${SRC}/admesh ${SRC}/.. ${SRC}/libslic3r ${SRC}/poly2tri)
 include_directories(${INCLUDE_DIRS})
 
-ADD_EXECUTABLE(slicer ${slic3r_sources} ${slicer_source} ${clipper_source} ${iopaths_source})
+ADD_LIBRARY(slic3r SHARED ${clipper_source} ${iopaths_source} ${slic3r_sources})
+
+ADD_EXECUTABLE(slicer ${slicer_source})
+target_link_libraries(slicer slic3r)
+
+ADD_EXECUTABLE(bb ${bb_source})
+target_link_libraries(bb slic3r)
 
 if(${MINGW})
   file(GLOB DLL_FILES ${SRC}/../mingwdlls/*.dll)
