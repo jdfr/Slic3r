@@ -9,6 +9,13 @@ else()
   set(CLIPPER_BASE_DIR "" CACHE PATH "tweaked clipper/iopaths base dir")
 endif()
 
+if(EXISTS ${SRC}/../boost)
+  set(BOOST_BASE_DIR ${SRC}/..)
+else()
+  #as far as I understand, this will enable users of cmake-gui to set this directory
+  set(BOOST_BASE_DIR "" CACHE PATH "path to boost library")
+endif()
+
 set(clipper_include_dir ${CLIPPER_BASE_DIR}/clipper)
 set(iopaths_include_dir ${CLIPPER_BASE_DIR}/iopaths)
 set(clipper_source ${clipper_include_dir}/clipper.cpp)
@@ -52,7 +59,7 @@ endif()
 
 set(slic3r_sources ${admesh_c} ${slic3r_c} ${poly2tri_c})
 
-set (INCLUDE_DIRS ${clipper_include_dir} ${iopaths_include_dir} ${SRC} ${SRC}/admesh ${SRC}/.. ${SRC}/libslic3r ${SRC}/poly2tri)
+set (INCLUDE_DIRS ${clipper_include_dir} ${iopaths_include_dir} ${BOOST_BASE_DIR} ${SRC} ${SRC}/admesh ${SRC}/libslic3r ${SRC}/poly2tri)
 include_directories(${INCLUDE_DIRS})
 
 ADD_LIBRARY(slic3r SHARED ${clipper_source} ${iopaths_source} ${slic3r_sources})
