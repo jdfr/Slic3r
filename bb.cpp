@@ -21,9 +21,9 @@ int main(int argc, char **argv) {
   Slic3r::BoundingBoxf3 bb = mesh->bounding_box();
   
   printf("bounding box:\n");
-  printf("X: %f %f\n", bb.min.x, bb.max.x);
-  printf("Y: %f %f\n", bb.min.y, bb.max.y);
-  printf("Z: %f %f\n", bb.min.z, bb.max.z);
+  printf("X: %25.20g %25.20g\n", bb.min.x, bb.max.x);
+  printf("Y: %25.20g %25.20g\n", bb.min.y, bb.max.y);
+  printf("Z: %25.20g %25.20g\n", bb.min.z, bb.max.z);
   
   delete mesh; 
   return 0;
