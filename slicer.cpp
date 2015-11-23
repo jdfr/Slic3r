@@ -67,7 +67,7 @@ size_t io_num_bytes_total(std::vector<clp::Paths> &pathss, PathCloseMode mode) {
 
 int64 getCommand(FILE *input) {
   int64 command;
-  READ_BINARY(&command, sizeof(int64), 1, input);
+  READ_BINARY_NAIVE(&command, sizeof(int64), 1, input);
   return command;
 }
 
@@ -204,7 +204,7 @@ int main(int argc, char **argv) {
     
     DEBUGPRINTF("BEFORE NEED_REPAIR=%ld\n", needed_repair);
     
-    WRITE_BINARY(&needed_repair, sizeof(double), 1, output);
+    WRITE_BINARY_NAIVE(&needed_repair, sizeof(double), 1, output);
     
     if (needed_repair) {
       BENCHGETTICK(t[4]);
@@ -228,22 +228,22 @@ int main(int argc, char **argv) {
 
   DEBUGPRINTF("BEFORE MAXZ=%f, MINZ=%f\n", maxz, minz);
   
-  WRITE_BINARY(&minz, sizeof(double), 1, output);
-  WRITE_BINARY(&maxz, sizeof(double), 1, output);
+  WRITE_BINARY_NAIVE(&minz, sizeof(double), 1, output);
+  WRITE_BINARY_NAIVE(&maxz, sizeof(double), 1, output);
   fflush(output);
 
   DEBUGPRINTF("AFTER MAXZ, MINZ\n");
       
   int64 numslices, command;
   
-  READ_BINARY(&numslices, sizeof(int64), 1, input);
+  READ_BINARY_NAIVE(&numslices, sizeof(int64), 1, input);
 
   DEBUGPRINTF("AFTER NUMSLICES=%ld\n", numslices);
       
   std::vector<float>  zsf(numslices);
   std::vector<double> zsd(numslices);
 
-  READ_BINARY(&(zsd[0]), sizeof(double), numslices, input);
+  READ_BINARY_NAIVE(&(zsd[0]), sizeof(double), numslices, input);
   
   DEBUGPRINTF("AFTER ZS\n");
       
@@ -257,6 +257,7 @@ int main(int argc, char **argv) {
   Slic3r::TriangleMeshSlicer *slicer = new Slic3r::TriangleMeshSlicer(mesh, 0.0);
   std::vector<Slic3r::ExPolygons> expolygonss;
   int ret = 0;
+  IOPaths iop(output);
   
   if (!doincremental) {
     
@@ -281,7 +282,7 @@ int main(int argc, char **argv) {
       }
       expolygonss = std::vector<Slic3r::ExPolygons>(); //get rid of this to free memory
       //int64 nbytes = io_num_bytes_total(pathss, PathOpen);
-      //WRITE_BINARY(&nbytes, sizeof(int64), 1, output);
+      //WRITE_BINARY_NAIVE(&nbytes, sizeof(int64), 1, output);
       
       BENCHGETTICK(t[6]);
 
@@ -297,9 +298,14 @@ int main(int argc, char **argv) {
         //BENCHGETTICK(tt[0]);
         
         //int64 nbytes = io_num_bytes(pathss[command], PathOpen);
-        //WRITE_BINARY(&nbytes, sizeof(int64), 1, output);
+        //WRITE_BINARY_NAIVE(&nbytes, sizeof(int64), 1, output);
 
-        writePrefixedClipperPaths(output, pathss[command], PathOpen);
+        
+        if (!iop.writePrefixedClipperPaths(pathss[command], PathOpen)) {
+            fprintf(stderr, "ERROR writing to the output in incremental mode!!! Error message <%s> in %s\n", iop.errs[0].message, iop.errs[0].function);
+            ret = -1;
+            break;
+        }
         //BENCHGETTICK(tt[1]);
         //fflush(output);
         ////BENCHGETTICK(tt[2]);
@@ -342,8 +348,12 @@ int main(int argc, char **argv) {
         
         BENCHGETTICK(tt[1]);
         //int64 nbytes = io_num_bytes(pathss[command], PathOpen);
-        //WRITE_BINARY(&nbytes, sizeof(int64), 1, output);
-        writePrefixedClipperPaths(output, paths, PathOpen);
+        //WRITE_BINARY_NAIVE(&nbytes, sizeof(int64), 1, output);
+        if (!iop.writePrefixedClipperPaths(paths, PathOpen)) {
+            fprintf(stderr, "ERROR writing to the output!!! Error message <%s> in %s\n", iop.errs[0].message, iop.errs[0].function);
+            ret = -1;
+            break;
+        }
         paths.clear();
         BENCHGETTICK(tt[2]);
         //fflush(output);
