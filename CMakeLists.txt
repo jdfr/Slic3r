@@ -2,6 +2,8 @@ CMAKE_MINIMUM_REQUIRED(VERSION 2.8.0)
 
 set(SRC ${CMAKE_CURRENT_SOURCE_DIR})
 
+option(ENABLE_SLICER_LOGGING   "enable slicer debug output to file" ON)
+
 if(EXISTS ${SRC}/../clipper)
   set(CLIPPER_BASE_DIR ${SRC}/../clipper)
 else()
@@ -66,6 +68,10 @@ ADD_LIBRARY(slic3r SHARED ${clipper_source} ${iopaths_source} ${slic3r_sources})
 
 ADD_EXECUTABLE(slicer ${slicer_source})
 target_link_libraries(slicer slic3r)
+if (ENABLE_SLICER_LOGGING)
+    set_property(TARGET slicer APPEND PROPERTY COMPILE_DEFINITIONS "SLICER_USE_DEBUG_FILE")
+endif()
+
 
 ADD_EXECUTABLE(bb ${bb_source})
 target_link_libraries(bb slic3r)

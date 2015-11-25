@@ -14,28 +14,33 @@
 
 //#define BUFSIZE (1024*256*8)
 
-#define DEBUG_MAIN
-//#define BENCHMARK
+#define SLICER_DEBUG_MAIN
+//#define SLICER_BENCHMARK
 #define ENSURE_REPAIR
 
-#if defined(DEBUG_MAIN) || defined(BENCHMARK)
-#define USE_DEBUG_FILE
+#ifndef INWINDOWS
+#  undef SLICER_BENCHMARK
+#endif
+
+#if defined(SLICER_DEBUG_MAIN) || defined(SLICER_BENCHMARK)
+#  ifndef SLICER_USE_DEBUG_FILE
+#    error if SLICER_DEBUG_MAIN or SLICER_BENCHMARK is defined, SLICER_USE_DEBUG_FILE must be defined
+#  endif
+#endif
+
+#ifdef SLICER_USE_DEBUG_FILE
 #  define CLOSE_DEBUG_FILE {fclose(STDERR);}
 #else
 #  define CLOSE_DEBUG_FILE {}
 #endif
 
-#ifdef DEBUG_MAIN
+#ifdef SLICER_DEBUG_MAIN
 #  define DEBUGPRINTF(...) {fprintf(STDERR, __VA_ARGS__); fflush(STDERR);}
 #else
 #  define DEBUGPRINTF(...) {}
 #endif
 
-#ifndef INWINDOWS
-#  undef BENCHMARK
-#endif
-
-#ifdef BENCHMARK 
+#ifdef SLICER_BENCHMARK 
 #  include <windows.h>
 #  define BENCHGETTICK(tick)                 QueryPerformanceCounter(&(tick));
 #  define BENCHPRINTF(...)                   {fprintf(STDERR, __VA_ARGS__);}
@@ -74,7 +79,7 @@ int64 getCommand(FILE *input) {
 
 int main(int argc, char **argv) {
 
-#ifdef BENCHMARK
+#ifdef SLICER_BENCHMARK
   // ticks per second
   LARGE_INTEGER frequency;
   // ticks
@@ -88,26 +93,8 @@ int main(int argc, char **argv) {
 
   FILE * output = stdout;
   FILE * input  = stdin;
-  char *filename;
+  char *filenameinput, *filenameoutput;
   
-#ifdef USE_DEBUG_FILE
-  FILE * STDERR = fopen("debug.txt", "w");
-  if (STDERR==NULL) {
-    fprintf(stderr, "Could not open debug output file!!!!\n");
-    return -1;
-  }
-  setConfessErrOutput(STDERR);
-  #ifdef DEBUG_IO
-    setIOErrOutput(STDERR);
-  #endif
-#else
-  #ifdef DEBUG_IO
-    setIOErrOutput(stderr);
-  #endif
-#endif
-
-  DEBUGPRINTF("BEFORE EVERYTHING\n");
-
 #ifdef BUFSIZE  
   char * buffer_in  = new char[BUFSIZE];
   char * buffer_out = new char[BUFSIZE];
@@ -118,28 +105,46 @@ int main(int argc, char **argv) {
 #  define CLEAR_BUFFERS 
 #endif
   
-  if (argc<4) {
+  
+  int minNumArgs = 4;
+#ifdef SLICER_USE_DEBUG_FILE
+  ++minNumArgs;
+#endif
+  
+  if (argc<minNumArgs) {
     fprintf(stderr, "%d IS AN INCORRECT NUMBER OF ARGUMENTS!!!", argc-1);
-    DEBUGPRINTF("%d IS AN INCORRECT NUMBER OF ARGUMENTS!!!", argc-1);
-    CLOSE_DEBUG_FILE;
     CLEAR_BUFFERS;
     return -1;
   }
   
-  bool justRepair = strcmp("justrepair", argv[1])==0;
-  bool doRepair = strcmp("repair", argv[1])==0;
+  int argidx = 1;
   
-  //this was needed before adding the flag for incremental slicing, now is redundant
-  /*if (justRepair && (argc<4)) {
-    fprintf(stderr, "%d IS AN INCORRECT NUMBER OF ARGUMENTS IF JUST REPAIRING!!!", argc-1);
-    DEBUGPRINTF("%d IS AN INCORRECT NUMBER OF ARGUMENTS IF JUST REPAIRING!!!", argc-1);
-    CLOSE_DEBUG_FILE;
-    CLEAR_BUFFERS;
+#ifdef SLICER_USE_DEBUG_FILE
+  const char *debugfilename = argv[argidx++];
+  
+  FILE * STDERR = fopen(debugfilename, "w");
+  if (STDERR==NULL) {
+    fprintf(stderr, "Could not open debug output file!!!!\n");
     return -1;
-  }*/
+  }
+  setConfessErrOutput(STDERR);
+
+  DEBUGPRINTF("BEFORE EVERYTHING\n");
+#endif
   
-  bool doincremental = (!justRepair) && (strcmp("incremental", argv[2])==0);
-  filename = (justRepair) ? argv[2] : argv[3];
+  const char * repairMode  = argv[argidx++];
+  
+  bool justRepair = strcmp("justrepair", repairMode)==0;
+  bool doRepair = strcmp("repair", repairMode)==0;
+  
+  bool doincremental=false;
+  if (!justRepair) {
+    doincremental = strcmp("incremental", argv[argidx++])==0;
+  }
+  filenameinput = argv[argidx++];
+  if (justRepair) {
+    filenameoutput = argv[argidx++];
+  }
   
   DEBUGPRINTF("BEFORE BINARIZING IO\n");
 
@@ -149,17 +154,17 @@ int main(int argc, char **argv) {
 #endif
 
   Slic3r::TriangleMesh *mesh = new Slic3r::TriangleMesh();
-  #ifdef DEBUG_IO
-    mesh->stl.err = STDERR;
-  #else
-    mesh->stl.err = stderr;
-  #endif
+#ifdef SLICER_USE_DEBUG_FILE
+  mesh->stl.err = STDERR;
+#else
+  mesh->stl.err = stderr;
+#endif
   
   BENCHGETTICK(t[1]);
   
-  DEBUGPRINTF("BEFORE READ STL, doRepair==%d, justRepair==%d, file=%s\n", doRepair, justRepair, filename)
+  DEBUGPRINTF("BEFORE READ STL, doRepair==%d, justRepair==%d, file=%s\n", doRepair, justRepair, filenameinput)
 
-  mesh->ReadSTLFile(filename);
+  mesh->ReadSTLFile(filenameinput);
 
   DEBUGPRINTF("AFTER READ STL\n");
 
@@ -182,7 +187,7 @@ int main(int argc, char **argv) {
   if (justRepair) {
     DEBUGPRINTF("BEFORE WRITING STL\n");
     
-    mesh->write_binary(argv[3]);
+    mesh->write_binary(filenameoutput);
     
     DEBUGPRINTF("AFTER WRITING STL\n");
     
@@ -302,7 +307,7 @@ int main(int argc, char **argv) {
 
         
         if (!iop.writePrefixedClipperPaths(pathss[command], PathOpen)) {
-            fprintf(stderr, "ERROR writing to the output in incremental mode!!! Error message <%s> in %s\n", iop.errs[0].message, iop.errs[0].function);
+            DEBUGPRINTF("ERROR writing to the output in incremental mode!!! Error message <%s> in %s\n", iop.errs[0].message, iop.errs[0].function);
             ret = -1;
             break;
         }
@@ -350,7 +355,7 @@ int main(int argc, char **argv) {
         //int64 nbytes = io_num_bytes(pathss[command], PathOpen);
         //WRITE_BINARY_NAIVE(&nbytes, sizeof(int64), 1, output);
         if (!iop.writePrefixedClipperPaths(paths, PathOpen)) {
-            fprintf(stderr, "ERROR writing to the output!!! Error message <%s> in %s\n", iop.errs[0].message, iop.errs[0].function);
+            DEBUGPRINTF("ERROR writing to the output!!! Error message <%s> in %s\n", iop.errs[0].message, iop.errs[0].function);
             ret = -1;
             break;
         }
