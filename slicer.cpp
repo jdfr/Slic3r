@@ -265,8 +265,9 @@ int main(int argc, char **argv) {
   IOPaths iop(output);
   
   if (!doincremental) {
-    
+    if (zsf.size()>0) {
       slicer->slice(zsf, &expolygonss);
+    }  
       //get rid of this to free memory
       delete mesh; 
       delete slicer;
@@ -277,6 +278,7 @@ int main(int argc, char **argv) {
       BENCHGETTICK(t[5]);
       
       std::vector<clp::Paths> pathss(expolygonss.size());
+    if (zsf.size()>0) {
       std::vector<clp::Paths>::iterator paths = pathss.begin();
       for (std::vector<Slic3r::ExPolygons>::iterator expolygons = expolygonss.begin(); expolygons != expolygonss.end(); ++expolygons) {
         for (Slic3r::ExPolygons::iterator expolygon = expolygons->begin(); expolygon != expolygons->end(); ++expolygon) {
@@ -288,7 +290,8 @@ int main(int argc, char **argv) {
       expolygonss = std::vector<Slic3r::ExPolygons>(); //get rid of this to free memory
       //int64 nbytes = io_num_bytes_total(pathss, PathOpen);
       //WRITE_BINARY_NAIVE(&nbytes, sizeof(int64), 1, output);
-      
+    }
+
       BENCHGETTICK(t[6]);
 
       //while ((command=getCommand(input)) >= 0) {
@@ -324,7 +327,6 @@ int main(int argc, char **argv) {
         ////BENCHGETTICK(tt[3]);
         ////SHOWBENCHMARK("  WRITING THE ABOVE: %f\n", tt[2], tt[3]);
       }
-      
   } else {
     
       std::vector<float>  zsf1(1);
