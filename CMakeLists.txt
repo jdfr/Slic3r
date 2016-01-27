@@ -32,7 +32,9 @@ endif()
 
 PROJECT(slic3r)
 
-SET(CMAKE_BUILD_TYPE "Release" CACHE STRING "Release type")
+if (NOT CMAKE_BUILD_TYPE)
+  SET(CMAKE_BUILD_TYPE "Release" CACHE STRING "Release type")
+endif()
 
 #add compiler flags from Slicer/xs/Build.PL (HAS_BOOL and SLIC3RXS
 #are specific to the perl build, so they are not included here)
