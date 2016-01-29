@@ -45,9 +45,9 @@ ADD_DEFINITIONS(-D_GLIBCXX_USE_C99 -DNOGDI)# -DDEBUG_IOPATHS)
 set(MASK "/*.c*") #*.c, *.cc, *.cpp
 file(GLOB_RECURSE poly2tri_c  "${SRC}/xs/src/poly2tri${MASK}") 
 file(GLOB_RECURSE admesh_c    "${SRC}/xs/src/admesh${MASK}")
-set(slicer_source "${SRC}/xs/src/standalone/slicer.cpp")
-set(bb_source "${SRC}/xs/src/standalone/bb.cpp")
-set(zpos_source "${SRC}/xs/src/standalone/zpos.cpp")
+set(slicer_source "${SRC}/standalone/slicer.cpp")
+set(bb_source "${SRC}/standalone/bb.cpp")
+set(zpos_source "${SRC}/standalone/zpos.cpp")
 #include just the sources we need to make it compile. Much code could be culled but for now we don't bother to edit the files
 set (selectedfiles BoundingBox ClipperUtils ExPolygon ExPolygonCollection Geometry Line MultiPoint Point Polygon Polyline PolylineCollection Surface TriangleMesh utils)
 set(slic3r_c "")
@@ -58,7 +58,7 @@ list(APPEND slic3r_c ${SRC}/xs/src/polypartition.cpp)
 
 set(slic3r_sources ${admesh_c} ${slic3r_c} ${poly2tri_c})
 
-set (INCLUDE_DIRS ${clipper_include_dir} ${iopaths_include_dir} ${BOOST_INCLUDE_DIR} ${SRC}/xs/src ${SRC}/xs/src/standalone ${SRC}/xs/src/admesh ${SRC}/xs/src/libslic3r ${SRC}/xs/src/poly2tri)
+set (INCLUDE_DIRS ${clipper_include_dir} ${iopaths_include_dir} ${BOOST_INCLUDE_DIR} ${SRC}/xs/src ${SRC}/standalone ${SRC}/xs/src/admesh ${SRC}/xs/src/libslic3r ${SRC}/xs/src/poly2tri)
 include_directories(${INCLUDE_DIRS})
 
 ADD_LIBRARY(slic3r SHARED ${clipper_source} ${iopaths_source} ${slic3r_sources})
