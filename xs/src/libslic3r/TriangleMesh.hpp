@@ -91,8 +91,8 @@ class TriangleMeshSlicer
     double safety_offset;
     TriangleMeshSlicer(TriangleMesh* _mesh, double _safety_offset=DEFAULT_SLICING_SAFETY_OFFSET);
     ~TriangleMeshSlicer();
-    void slice(const std::vector<float> &z, std::vector<Polygons>* layers);
-    void slice(const std::vector<float> &z, std::vector<ExPolygons>* layers);
+    void slice(std::vector<float> &z, std::vector<Polygons>* layers);
+    void slice(std::vector<float> &z, std::vector<ExPolygons>* layers);
     void slice_facet(float slice_z, const stl_facet &facet, const int &facet_idx, const float &min_z, const float &max_z, std::vector<IntersectionLine>* lines) const;
     void cut(float z, TriangleMesh* upper, TriangleMesh* lower);
     

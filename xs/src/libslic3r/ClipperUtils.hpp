@@ -31,6 +31,8 @@ template <class T>
 void ClipperPaths_to_Slic3rMultiPoints(const ClipperLib::Paths &input, T* output);
 void ClipperPaths_to_Slic3rExPolygons(const ClipperLib::Paths &input, Slic3r::ExPolygons* output);
 
+void Add_Slic3rExPolygon_to_ClipperPaths(const Slic3r::ExPolygon &input, ClipperLib::Paths* output);
+
 void scaleClipperPolygons(ClipperLib::Paths &polygons, const double scale);
 
 // offset Polygons

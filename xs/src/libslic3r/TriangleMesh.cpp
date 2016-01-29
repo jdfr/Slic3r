@@ -420,7 +420,7 @@ bool IsSorted(const std::vector<T>& v)
 }
 
 void
-TriangleMeshSlicer::slice(const std::vector<float> &z, std::vector<Polygons>* layers)
+TriangleMeshSlicer::slice(std::vector<float> &z, std::vector<Polygons>* layers)
 {
     /*
        This method gets called with a list of unscaled Z coordinates and outputs
@@ -511,7 +511,7 @@ TriangleMeshSlicer::slice(const std::vector<float> &z, std::vector<Polygons>* la
 }
 
 void
-TriangleMeshSlicer::slice(const std::vector<float> &z, std::vector<ExPolygons>* layers)
+TriangleMeshSlicer::slice(std::vector<float> &z, std::vector<ExPolygons>* layers)
 {
     std::vector<Polygons> layers_p;
     this->slice(z, &layers_p);
