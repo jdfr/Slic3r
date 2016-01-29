@@ -296,7 +296,7 @@ stl_write_binary(stl_file *stl, const char *file, const char *label) {
 void
 stl_write_vertex(stl_file *stl, int facet, int vertex) {
   if (stl->error) return;
-  printf("  vertex %d/%d % .8E % .8E % .8E\n", vertex, facet,
+  fprintf(stl->err, "  vertex %d/%d % .8E % .8E % .8E\n", vertex, facet,
          stl->facet_start[facet].vertex[vertex].x,
          stl->facet_start[facet].vertex[vertex].y,
          stl->facet_start[facet].vertex[vertex].z);
@@ -305,7 +305,7 @@ stl_write_vertex(stl_file *stl, int facet, int vertex) {
 void
 stl_write_facet(stl_file *stl, char *label, int facet) {
   if (stl->error) return;
-  printf("facet (%d)/ %s\n", facet, label);
+  fprintf(stl->err, "facet (%d)/ %s\n", facet, label);
   stl_write_vertex(stl, facet, 0);
   stl_write_vertex(stl, facet, 1);
   stl_write_vertex(stl, facet, 2);
@@ -314,7 +314,7 @@ stl_write_facet(stl_file *stl, char *label, int facet) {
 void
 stl_write_edge(stl_file *stl, char *label, stl_hash_edge edge) {
   if (stl->error) return;
-  printf("edge (%d)/(%d) %s\n", edge.facet_number, edge.which_edge, label);
+  fprintf(stl->err, "edge (%d)/(%d) %s\n", edge.facet_number, edge.which_edge, label);
   if(edge.which_edge < 3) {
     stl_write_vertex(stl, edge.facet_number, edge.which_edge % 3);
     stl_write_vertex(stl, edge.facet_number, (edge.which_edge + 1) % 3);
@@ -327,7 +327,7 @@ stl_write_edge(stl_file *stl, char *label, stl_hash_edge edge) {
 void
 stl_write_neighbor(stl_file *stl, int facet) {
   if (stl->error) return;
-  printf("Neighbors %d: %d, %d, %d ;  %d, %d, %d\n", facet,
+  fprintf(stl->err, "Neighbors %d: %d, %d, %d ;  %d, %d, %d\n", facet,
          stl->neighbors_start[facet].neighbor[0],
          stl->neighbors_start[facet].neighbor[1],
          stl->neighbors_start[facet].neighbor[2],

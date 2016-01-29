@@ -405,6 +405,20 @@ TriangleMesh::require_shared_vertices()
     if (this->stl.v_shared == NULL) stl_generate_shared_vertices(&(this->stl));
 }
 
+typedef std::pair<float, int> SortPair;
+bool comparator(const SortPair &l, const SortPair &r) {
+  return l.first<r.first;
+}
+
+template <class T>
+bool IsSorted(const std::vector<T>& v)
+{
+  return std::adjacent_find(
+    v.begin(),
+    v.end(),
+    std::greater<T>()) == v.end();
+}
+
 void
 TriangleMeshSlicer::slice(const std::vector<float> &z, std::vector<Polygons>* layers)
 {
@@ -437,6 +451,21 @@ TriangleMeshSlicer::slice(const std::vector<float> &z, std::vector<Polygons>* la
     */
     
     std::vector<IntersectionLines> lines(z.size());
+
+    bool issorted = IsSorted(z); //std::is_sorted(z.begin(), z.end());
+    
+    std::vector<SortPair> pairs;
+    if (!issorted) {
+      pairs.resize(z.size());
+      for (int k=0; k<z.size(); ++k) {
+        pairs[k].first = z[k];
+        pairs[k].second = k;
+      }
+      std::sort(pairs.begin(), pairs.end(), comparator);
+      for (int k=0; k<z.size(); ++k) {
+        z[k] = pairs[k].first;
+      }
+    }
     
     for (int facet_idx = 0; facet_idx < this->mesh->stl.stats.number_of_facets; facet_idx++) {
         stl_facet* facet = &this->mesh->stl.facet_start[facet_idx];
@@ -463,6 +492,7 @@ TriangleMeshSlicer::slice(const std::vector<float> &z, std::vector<Polygons>* la
         
         for (std::vector<float>::const_iterator it = min_layer; it != max_layer + 1; ++it) {
             std::vector<float>::size_type layer_idx = it - z.begin();
+            if (!issorted) { layer_idx = pairs[layer_idx].second; }
             this->slice_facet(*it / SCALING_FACTOR, *facet, facet_idx, min_z, max_z, &lines[layer_idx]);
         }
     }
@@ -722,7 +752,7 @@ TriangleMeshSlicer::make_loops(std::vector<IntersectionLine> &lines, Polygons* l
                 // we can't close this loop!
                 //// push @failed_loops, [@loop];
                 //#ifdef SLIC3R_DEBUG
-                printf("  Unable to close this loop having %d points\n", (int)loop.size());
+                CONFESS("  Unable to close this loop having %d points\n", (int)loop.size());
                 //#endif
                 goto CYCLE;
             }
@@ -829,9 +859,8 @@ TriangleMeshSlicer::make_expolygons(const Polygons &loops, ExPolygons* slices)
     }
 
     // perform a safety offset to merge very close facets (TODO: find test case for this)
-    double safety_offset = scale_(0.0499);
     ExPolygons ex_slices;
-    offset2(p_slices, &ex_slices, +safety_offset, -safety_offset);
+    offset2(p_slices, &ex_slices, +this->safety_offset, -this->safety_offset);
     
     #ifdef SLIC3R_DEBUG
     size_t holes_count = 0;
@@ -1010,7 +1039,7 @@ TriangleMeshSlicer::cut(float z, TriangleMesh* upper, TriangleMesh* lower)
     
 }
 
-TriangleMeshSlicer::TriangleMeshSlicer(TriangleMesh* _mesh) : mesh(_mesh), v_scaled_shared(NULL)
+TriangleMeshSlicer::TriangleMeshSlicer(TriangleMesh* _mesh, double _safety_offset) : mesh(_mesh), safety_offset(_safety_offset), v_scaled_shared(NULL)
 {
     // build a table to map a facet_idx to its three edge indices
     this->mesh->require_shared_vertices();

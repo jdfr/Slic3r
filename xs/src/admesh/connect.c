@@ -574,7 +574,7 @@ stl_change_vertices(stl_file *stl, int facet_num, int vnot,
 
     if(facet_num == first_facet) {
       /* back to the beginning */
-      printf("\
+      fprintf(stl->err, "\
 Back to the first facet changing vertices: probably a mobius part.\n\
 Try using a smaller tolerance or don't do a nearby check\n");
       return;
@@ -693,7 +693,7 @@ stl_remove_facet(stl_file *stl, int facet_number) {
     if(neighbor[i] != -1) {
       if(stl->neighbors_start[neighbor[i]].neighbor[(vnot[i] + 1)% 3] !=
           stl->stats.number_of_facets) {
-        printf("\
+        fprintf(stl->err, "\
 in stl_remove_facet: neighbor = %d numfacets = %d this is wrong\n",
                stl->neighbors_start[neighbor[i]].neighbor[(vnot[i] + 1)% 3],
                stl->stats.number_of_facets);
@@ -764,7 +764,7 @@ stl_remove_degenerate(stl_file *stl, int facet) {
                    &stl->facet_start[facet].vertex[2], sizeof(stl_vertex))) {
     /* all 3 vertices are equal.  Just remove the facet.  I don't think*/
     /* this is really possible, but just in case... */
-    printf("removing a facet in stl_remove_degenerate\n");
+    fprintf(stl->err, "removing a facet in stl_remove_degenerate\n");
 
     stl_remove_facet(stl, facet);
     return;
@@ -933,7 +933,7 @@ stl_fill_holes(stl_file *stl) {
 
         if(facet_num == first_facet) {
           /* back to the beginning */
-          printf("\
+          fprintf(stl->err, "\
 Back to the first facet filling holes: probably a mobius part.\n\
 Try using a smaller tolerance or don't do a nearby check\n");
           return;

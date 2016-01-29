@@ -1,4 +1,15 @@
+#ifdef SLIC3RXS
 #include <xsinit.h>
+#else
+#include "libslic3r.h"
+#include <stdio.h>
+#endif
+
+FILE *STDERRCONFESS=stderr;
+
+void setConfessErrOutput(FILE *err) {
+  STDERRCONFESS=err;
+}
 
 void
 confess_at(const char *file, int line, const char *func,
@@ -24,5 +35,10 @@ confess_at(const char *file, int line, const char *func,
      call_pv("Carp::confess", G_DISCARD);
      FREETMPS;
      LEAVE;
+    #else
+      va_list args;
+      fprintf(STDERRCONFESS, "Error in function %s at %s:%d: ", func, file, line);
+      vfprintf(STDERRCONFESS, pat, args);
+      fprintf(STDERRCONFESS, "\n");
     #endif
 }

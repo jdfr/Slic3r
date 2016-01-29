@@ -64,7 +64,7 @@ stl_verify_neighbors(stl_file *stl) {
       }
       if(memcmp(&edge_a, &edge_b, SIZEOF_EDGE_SORT) != 0) {
         /* These edges should match but they don't.  Print results. */
-        printf("edge %d of facet %d doesn't match edge %d of facet %d\n",
+        fprintf(stl->err, "edge %d of facet %d doesn't match edge %d of facet %d\n",
                j, i, vnot + 1, neighbor);
         stl_write_facet(stl, (char*)"first facet", i);
         stl_write_facet(stl, (char*)"second facet", neighbor);
@@ -452,7 +452,7 @@ void stl_repair(stl_file *stl,
   if(exact_flag || fixall_flag || nearby_flag || remove_unconnected_flag
       || fill_holes_flag || normal_directions_flag) {
     if (verbose_flag)
-      printf("Checking exact...\n");
+      fprintf(stl->err, "Checking exact...\n");
     exact_flag = 1;
     stl_check_facets_exact(stl);
     stl->stats.facets_w_1_bad_edge =
@@ -479,74 +479,74 @@ void stl_repair(stl_file *stl,
         if(stl->stats.connected_facets_3_edge <
             stl->stats.number_of_facets) {
           if (verbose_flag)
-            printf("\
+            fprintf(stl->err, "\
 Checking nearby. Tolerance= %f Iteration=%d of %d...",
                  tolerance, i + 1, iterations);
           stl_check_facets_nearby(stl, tolerance);
           if (verbose_flag)
-            printf("  Fixed %d edges.\n",
+            fprintf(stl->err, "  Fixed %d edges.\n",
                  stl->stats.edges_fixed - last_edges_fixed);
           last_edges_fixed = stl->stats.edges_fixed;
           tolerance += increment;
         } else {
           if (verbose_flag)
-            printf("\
+            fprintf(stl->err, "\
 All facets connected.  No further nearby check necessary.\n");
           break;
         }
       }
     } else {
       if (verbose_flag)
-        printf("All facets connected.  No nearby check necessary.\n");
+        fprintf(stl->err, "All facets connected.  No nearby check necessary.\n");
     }
   }
 
   if(remove_unconnected_flag || fixall_flag || fill_holes_flag) {
     if(stl->stats.connected_facets_3_edge <  stl->stats.number_of_facets) {
       if (verbose_flag)
-        printf("Removing unconnected facets...\n");
+        fprintf(stl->err, "Removing unconnected facets...\n");
       stl_remove_unconnected_facets(stl);
     } else
       if (verbose_flag)
-        printf("No unconnected need to be removed.\n");
+        fprintf(stl->err, "No unconnected need to be removed.\n");
   }
 
   if(fill_holes_flag || fixall_flag) {
     if(stl->stats.connected_facets_3_edge <  stl->stats.number_of_facets) {
       if (verbose_flag)
-        printf("Filling holes...\n");
+        fprintf(stl->err, "Filling holes...\n");
       stl_fill_holes(stl);
     } else
       if (verbose_flag)
-        printf("No holes need to be filled.\n");
+        fprintf(stl->err, "No holes need to be filled.\n");
   }
 
   if(reverse_all_flag) {
     if (verbose_flag)
-      printf("Reversing all facets...\n");
+      fprintf(stl->err, "Reversing all facets...\n");
     stl_reverse_all_facets(stl);
   }
 
   if(normal_directions_flag || fixall_flag) {
     if (verbose_flag)
-      printf("Checking normal directions...\n");
+      fprintf(stl->err, "Checking normal directions...\n");
     stl_fix_normal_directions(stl);
   }
 
   if(normal_values_flag || fixall_flag) {
     if (verbose_flag)
-      printf("Checking normal values...\n");
+      fprintf(stl->err, "Checking normal values...\n");
     stl_fix_normal_values(stl);
   }
 
   /* Always calculate the volume.  It shouldn't take too long */
   if (verbose_flag)
-    printf("Calculating volume...\n");
+    fprintf(stl->err, "Calculating volume...\n");
   stl_calculate_volume(stl);
 
   if(exact_flag) {
     if (verbose_flag)
-      printf("Verifying neighbors...\n");
+      fprintf(stl->err, "Verifying neighbors...\n");
     stl_verify_neighbors(stl);
   }
 }

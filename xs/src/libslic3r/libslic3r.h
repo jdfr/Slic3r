@@ -34,6 +34,7 @@ using namespace Slic3r;
 /* Implementation of CONFESS("foo"): */
 #define CONFESS(...) confess_at(__FILE__, __LINE__, __func__, __VA_ARGS__)
 void confess_at(const char *file, int line, const char *func, const char *pat, ...);
+void setConfessErrOutput(FILE *err);
 /* End implementation of CONFESS("foo"): */
 
 #endif

@@ -21,6 +21,7 @@
  */
 
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "stl.h"
@@ -149,7 +150,7 @@ stl_write_off(stl_file *stl, char *file) {
   if (stl->error) return;
 
   /* Open the file */
-  fp = fopen(file, "w");
+  fp = fopen(file, "wt");
   if(fp == NULL) {
     error_msg = (char*)
                 malloc(81 + strlen(file)); /* Allow 80 chars+file size for message */
