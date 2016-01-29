@@ -42,28 +42,23 @@ endif()
 # NOGDI            : prevents inclusion of wingdi.h which defines functions Polygon() and Polyline() in global namespace
 ADD_DEFINITIONS(-D_GLIBCXX_USE_C99 -DNOGDI)# -DDEBUG_IOPATHS)
 
-option(FULLLIBRARY       "include all sources in the library" OFF)
-
 set(MASK "/*.c*") #*.c, *.cc, *.cpp
-file(GLOB_RECURSE poly2tri_c  "${SRC}/poly2tri${MASK}") 
-file(GLOB_RECURSE admesh_c    "${SRC}/admesh${MASK}")
-set(slicer_source "${SRC}/slicer.cpp")
-set(bb_source "${SRC}/bb.cpp")
-set(zpos_source "${SRC}/zpos.cpp")
-if (FULLLIBRARY)
-  file(GLOB_RECURSE slic3r_c "${SRC}/libslic3r${MASK}")
-else()
-  #include just the sources we need to make it compile. Much code could be culled but for now we don't bother to edit the files
-  set (selectedfiles BoundingBox ClipperUtils ExPolygon ExPolygonCollection Geometry Line MultiPoint Point Polygon Polyline PolylineCollection TriangleMesh utils polypartition)
-  set(slic3r_c "")
-  foreach(f ${selectedfiles})
-    list(APPEND slic3r_c ${SRC}/libslic3r/${f}.cpp)
-  endforeach()
-endif()
+file(GLOB_RECURSE poly2tri_c  "${SRC}/xs/src/poly2tri${MASK}") 
+file(GLOB_RECURSE admesh_c    "${SRC}/xs/src/admesh${MASK}")
+set(slicer_source "${SRC}/xs/src/standalone/slicer.cpp")
+set(bb_source "${SRC}/xs/src/standalone/bb.cpp")
+set(zpos_source "${SRC}/xs/src/standalone/zpos.cpp")
+#include just the sources we need to make it compile. Much code could be culled but for now we don't bother to edit the files
+set (selectedfiles BoundingBox ClipperUtils ExPolygon ExPolygonCollection Geometry Line MultiPoint Point Polygon Polyline PolylineCollection Surface TriangleMesh utils)
+set(slic3r_c "")
+foreach(f ${selectedfiles})
+  list(APPEND slic3r_c ${SRC}/xs/src/libslic3r/${f}.cpp)
+endforeach()
+list(APPEND slic3r_c ${SRC}/xs/src/polypartition.cpp)
 
 set(slic3r_sources ${admesh_c} ${slic3r_c} ${poly2tri_c})
 
-set (INCLUDE_DIRS ${clipper_include_dir} ${iopaths_include_dir} ${BOOST_INCLUDE_DIR} ${SRC} ${SRC}/admesh ${SRC}/libslic3r ${SRC}/poly2tri)
+set (INCLUDE_DIRS ${clipper_include_dir} ${iopaths_include_dir} ${BOOST_INCLUDE_DIR} ${SRC}/xs/src ${SRC}/xs/src/standalone ${SRC}/xs/src/admesh ${SRC}/xs/src/libslic3r ${SRC}/xs/src/poly2tri)
 include_directories(${INCLUDE_DIRS})
 
 ADD_LIBRARY(slic3r SHARED ${clipper_source} ${iopaths_source} ${slic3r_sources})
