@@ -401,81 +401,413 @@ Print::max_allowed_layer_height() const
     return *std::max_element(nozzle_diameter.begin(), nozzle_diameter.end());
 }
 
+//////////////////////////////////////////////////////////////
+////BEGIN CODE TO IMPORT DIRECTLY SLICES FROM PATHFILES///////
+//////////////////////////////////////////////////////////////
+
+//handy type to read values from record headers
+typedef union T64 {
+    ClipperLib::cInt i;
+    double d;
+} T64;
+//configuration option
+enum InitialLayerMode {InitialLayerTool0, InitialLayerMinimalZ, InitialLayerAlways, InitialLayerNever};
+//some shorthands
+#define EARLY_EXIT {exit(-1);}
+#define CONFESS_AND_EXIT(...) {CONFESS(__VA_ARGS__); EARLY_EXIT; }
+#define CONFESS_AND_EXIT_VAL(val, ...) {CONFESS(__VA_ARGS__); return val; }
+//definitions from multiresolution.h
+#define PATHTYPE_RAW_CONTOUR       0
+#define PATHTYPE_PROCESSED_CONTOUR 1
+#define PATHTYPE_TOOLPATH          2
+#define PATHFORMAT_INT64     0
+#define PATHFORMAT_DOUBLE    1
+#define PATHFORMAT_DOUBLE_3D 2
+
+//#define DEBUG_IMPORT_PATHS
+
+//read all Z values of contours from pathsfile
+bool getZValues(std::vector<std::vector<double> > &zss, double &minimal_z, std::string &file) {
+    //open pathsfile
+    FILE  *f = fopen(file.c_str(), "rb");
+    ClipperLib::cInt numtools, useSched, numRecords;
+    minimal_z = INFINITY;
+    
+    //read file header
+    if (fread(&numtools, sizeof(numtools), 1, f) != 1) CONFESS_AND_EXIT_VAL(false, "could not read numtools from file!");
+    if (fread(&useSched, sizeof(useSched), 1, f) != 1) CONFESS_AND_EXIT_VAL(false, "could not read useSched from file!");
+    
+    long numToSkip = sizeof(ClipperLib::cInt)*numtools;
+    if (useSched) numToSkip *= 2;
+    if (fseek(f, numToSkip, SEEK_CUR)!=0) CONFESS_AND_EXIT_VAL(false, "could not skip radiuses in file header!");
+
+    if (fread(&numRecords, sizeof(numRecords), 1, f) != 1) CONFESS_AND_EXIT_VAL(false, "could not read numRecords from file!");
+    
+    zss.clear();
+    zss.resize(numtools);
+    std::vector<T64> alldata;
+
+    for (int r=0; r<numRecords; ++r) {
+      ClipperLib::cInt totalSize, headerSize, type, ntool;
+      double z;
+      
+      if (fread(&totalSize,  sizeof(totalSize),  1, f) != 1) CONFESS_AND_EXIT_VAL(false, "could not read totalSize in record %d", r);
+      if (fread(&headerSize, sizeof(headerSize), 1, f) != 1) CONFESS_AND_EXIT_VAL(false, "could not read headerSize in record %d", r);
+      alldata.resize(headerSize/sizeof(T64));
+      if (alldata.size() < 2) CONFESS_AND_EXIT_VAL(false, "bad headerSize field (%d) in record %d", headerSize, r);
+      int numToRead = (int)(headerSize - 2 * sizeof(T64));
+      if (numToRead<5) CONFESS_AND_EXIT_VAL(false, "slice header too short for record %d", r);
+      if (fread(&(alldata[2]), 1, numToRead, f) != numToRead) CONFESS_AND_EXIT_VAL(false, "could not read slice header for record %d", r);
+      if(fseek(f, (long)(totalSize - headerSize), SEEK_CUR)!=0) CONFESS_AND_EXIT_VAL(false, "could not skip slice payload for record %d!", r);
+      type       = alldata[2].i;
+      ntool      = alldata[3].i;
+      z          = alldata[4].d;
+      
+      if (ntool>=numtools) CONFESS_AND_EXIT_VAL(false, "file had numtools=%d, but ntool=%d for record %d!", numtools, ntool, r);
+      if (type==PATHTYPE_PROCESSED_CONTOUR) {
+        zss[ntool].push_back(z);
+      }
+      if (z<minimal_z) {
+        minimal_z = z;
+      }
+    }  
+    fclose(f);
+    return true;
+}
+
+//compute Z limits for each slice from the Z values of its neighbors (assumes that Z values are
+bool getZLimits(int ntool, double z, std::vector<std::vector<double> > &zss, bool useSched, std::vector<double> &radiusX, std::vector<double> &radiusZ, double &height, double &minZ, double &maxZ) {
+  std::vector<double> &zs = zss[ntool];
+  int maxk = zs.size()-1;
+  for (int k=0; k< zs.size(); ++k) {
+    if (zs[k]==z) {
+      /* //THIS IS INCORRECT IF THERE CAN BE SLICES WITH THE SAME NTOOL AND SAME Z VALUE
+      if (k==0) {
+        maxZ   = (z+zs[k+1])/2;
+        height = (maxZ-z)*2;
+        minZ   = maxZ-height;
+      } else if (k==maxk) {
+        minZ   = (z+zs[k-1])/2;
+        height = (z-minZ)*2;
+        maxZ   = minZ+height;
+      } else {
+        minZ   = (z+zs[k-1])/2;
+        maxZ   = (z+zs[k+1])/2;
+        height = maxZ-minZ;
+      }
+      return true;*/
+      int nextk = k+1;
+      int prevk = k-1;
+      while ( (nextk<=maxk) && (zs[nextk]==z) ) {
+        ++nextk;
+      }
+      if (prevk>=0) {
+        minZ   = (z+zs[prevk])/2;
+        if (nextk<=maxk) {
+          maxZ   = (z+zs[nextk])/2;
+        } else {
+          maxZ   = z + (z-minZ);
+        }
+      } else {
+        if (nextk<=maxk) {
+          maxZ   = (z+zs[nextk])/2;
+        } else {
+          //in this case, we have only one slice. The only way we can solve this is by using radius data!
+          maxZ = z + (useSched ? radiusZ[ntool] : radiusX[ntool]);
+        }
+        minZ = z - (maxZ-z);
+      }
+      height = maxZ-minZ;
+      return true;
+    }
+  }
+  return false;
+}
+
 void
 Print::add_print_from_slices(std::string slicesInputFile)
 {
-    ClipperLib::cInt numz, numlayers, numpaths, numpoints;
-    int count, lc;
-    double height, print_z, slice_z, minz, maxz;
-    BoundingBoxf3 bb;
+    if (sizeof(ClipperLib::cInt)!=sizeof(double)) CONFESS_AND_EXIT("method add_print_from_slices() would fail because sizeof(double)==%d but sizeof(ClipperLib::cInt)==%d!", sizeof(double), sizeof(ClipperLib::cInt));
+    
+    //TODO: this should be configurable from command line, but, for now it is set at compile-time
+    InitialLayerMode initialLayerMode = InitialLayerTool0; //only the 0-th will have a non-empty layer with id=0
+    //InitialLayerMode initialLayerMode = InitialLayerMinimalZ; //all tools with a layer at minimal Z will have non-empty layers with id=0
+    //InitialLayerMode initialLayerMode = InitialLayerAlways; //all tools will have non-empty layers with id=0
+    //InitialLayerMode initialLayerMode = InitialLayerNever; //no tool will have a non-empty layer with id=0
+    
+    /*To compute Z boundaries between slices, we need to know the Z values of their immediate neighbours up and down.
+     * While we can do this in one pass, it would make the code quite a bit more complex.
+     * For now, let's do it in two passes. Hopefully, the first pass will be fast,
+     * since we only read the record headers and use fseek() to skim over the record payloads*/
+    std::vector<std::vector<double> > zss;
+    double minimal_z;
+    if (!getZValues(zss, minimal_z, slicesInputFile)) EARLY_EXIT;
+    
+    //open pathsfile
+    FILE  *f = fopen(slicesInputFile.c_str(), "rb");
+    ClipperLib::cInt numtools, useSched, numRecords;
+    std::vector<double> radiusX, radiusZ;
+    
+    //read file header
+    if (fread(&numtools, sizeof(numtools), 1, f) != 1) CONFESS_AND_EXIT("could not read numtools from file!");
+    if (fread(&useSched, sizeof(useSched), 1, f) != 1) CONFESS_AND_EXIT("could not read useSched from file!");
+
+    //neither radiusX nor radiusZ are in scaled units
+    radiusX.clear(); radiusX.resize(numtools);
+    radiusZ.clear(); radiusZ.resize(numtools);
+    for (int k = 0; k < numtools; ++k) {
+        if (fread(&(radiusX[k]), sizeof(double), 1, f) != 1) CONFESS_AND_EXIT("Could not read radiusX for tool ", k);
+        printf("Mira, radiusX[%d]=%g\n", k, radiusX[k]);
+        if (!useSched) continue;
+        if (fread(&(radiusZ[k]), sizeof(double), 1, f) != 1) CONFESS_AND_EXIT("Could not read radiusZ for tool ", k);
+        printf("Mira, radiusZ[%d]=%g\n", k, radiusZ[k]);
+    }
+
+    if (fread(&numRecords, sizeof(numRecords), 1, f) != 1) CONFESS_AND_EXIT("could not read numRecords from file!");
+    
+    std::vector<T64> alldata;
+    
+    std::vector<PrintRegion*> printregions(numtools, NULL);
+    std::vector<PrintObject*> printobjects(numtools, NULL);
+    std::vector<LayerRegion*> layerregions(numtools, NULL);
+    std::vector<BoundingBoxf3> bbs(numtools);
+    std::vector<double> previousZ(numtools);
+    std::vector<int> previousZRecord(numtools);
+    std::vector<int> layerIds(numtools, 0);
+
     ClipperLib::Paths paths;
     ExPolygons expolygons;
-    //prepare object without proper bb
-    PrintObject* o = new PrintObject(this, NULL, bb);
-    bb.min.x = bb.min.y = bb.min.z =  INFINITY;
-    bb.max.x = bb.max.y = bb.max.z = -INFINITY;
-    PrintRegion* printregion = this->add_region();
-    //read paths file (a series of layers)
-    FILE  *f = fopen(slicesInputFile.c_str(), "rb");
-    count = fread(&numlayers, sizeof(ClipperLib::cInt), 1, f);     if (count!=1) CONFESS("could not read path file!");
-    for (int i=0;i<numlayers; i++) {
-      ///read layer (a series of paths)
-      count = fread(&numz,  sizeof(ClipperLib::cInt), 1, f);       if (count!=1) CONFESS("could not read path file!");
-                                                                   if (numz!=3)  CONFESS("SERIALIZED PATHS MUST INCLUDE 3 Z VALUES TO BE IMPORTED INTO SLIC3R!");
-      count = fread(&height,  sizeof(double), 1, f);               if (count!=1) CONFESS("could not read path file!");
-      count = fread(&print_z, sizeof(double), 1, f);               if (count!=1) CONFESS("could not read path file!");
-      count = fread(&slice_z, sizeof(double), 1, f);               if (count!=1) CONFESS("could not read path file!");
-      minz  = print_z-height;
-      maxz  = print_z;
-      if (minz<bb.min.z) bb.min.z = minz;
-      if (maxz>bb.max.z) bb.max.z = maxz;
-      count = fread(&numpaths, sizeof(ClipperLib::cInt), 1, f);    if (count!=1) CONFESS("could not read path file!");
+    Polygons polygons;
+    std::vector<ClipperLib::DoublePoint> dpath;
+    
+    //read file
+    for (int r=0; r<numRecords; ++r) {
+      ClipperLib::cInt totalSize, headerSize, type, ntool, saveFormat, numpaths, numpoints;
+      double z, scaling, adapt_fac, height, minZ, maxZ;
+      int lc;
+
+      if (fread(&totalSize,  sizeof(totalSize),  1, f) != 1) CONFESS_AND_EXIT("could not read totalSize in record %d", r);
+      if (fread(&headerSize, sizeof(headerSize), 1, f) != 1) CONFESS_AND_EXIT("could not read headerSize in record %d", r);
+      alldata.resize(headerSize/sizeof(T64));
+      if (alldata.size() < 2) CONFESS_AND_EXIT("bad headerSize field (%d) in record %d", headerSize, r);
+      ClipperLib::cInt numToRead = (int)(headerSize - 2 * sizeof(T64));
+      if (numToRead<5) CONFESS_AND_EXIT("slice header too short for record %d", r);
+      if (fread(&(alldata[2]), 1, numToRead, f) != numToRead) CONFESS_AND_EXIT("could not read slice header for record %d", r);
+      type       = alldata[2].i;
+      ntool      = alldata[3].i;
+      z          = alldata[4].d;
+      saveFormat = alldata[5].i;
+      scaling    = alldata[6].d;
+      adapt_fac  = scaling/SCALING_FACTOR;
+      
+      //z is not in scaled units (as opposed to the XY coordinates of the actual paths)
+      
+      //2D paths in double format should be readable with a little effort, but there will be no easy solution for 3D paths
+      if ((saveFormat!=PATHFORMAT_INT64) && (saveFormat!=PATHFORMAT_DOUBLE)) CONFESS_AND_EXIT("contour in record %d/%d is not in a valid format. numToRead=%lld, type=%lld, ntool=%lld, z=%f, saveFormat=%lld, scaling=%f", r, numRecords, ((long long int)alldata.size())-2, type, ntool, z, saveFormat, scaling);
+      
+      bool isInt64 = saveFormat==PATHFORMAT_INT64;
+      
+      if (ntool>=numtools) CONFESS_AND_EXIT("file had numtools=%lld, but ntool=%lld for record %lld!", numtools, ntool, r);
+      if (ntool<-1) CONFESS_AND_EXIT("record %d had invalid ntool %lld!", r, ntool);
+      
+      if (type!=PATHTYPE_PROCESSED_CONTOUR) {
+          if (fseek(f, (long)(totalSize - headerSize), SEEK_CUR)!=0) CONFESS_AND_EXIT("could not seek past payload for record %d", r);
+          continue;
+      }
+      
+      //do Z value book-keeping and setup Slic3r object hierarchy
+      BoundingBoxf3 &bb    = bbs[ntool];
+      bool sameZAsPrevious = false;
+      if (printobjects[ntool]==NULL) {
+          //prepare object without proper bb
+          bb.min.x = bb.min.y = bb.min.z =  INFINITY;
+          bb.max.x = bb.max.y = bb.max.z = -INFINITY;
+      } else {
+          if (previousZ[ntool]>z) CONFESS_AND_EXIT("Slic3r requires the slices for each tool to be ordered by monotonically increasing Z value, but this was not true for tool %d: record %d had z=%f, while record %d has z=%f", ntool, previousZRecord[ntool], previousZ[ntool], r, z);
+          sameZAsPrevious = previousZ[ntool]==z;
+      }
+      
+      //read record payload
+      if (fread(&numpaths, sizeof(ClipperLib::cInt), 1, f)!=1)  CONFESS_AND_EXIT("could not read path file, record %d!", r);
       paths.clear();
       paths.resize(numpaths);
       for (ClipperLib::Paths::iterator pp = paths.begin(); pp != paths.end(); ++pp) {
-        //read path (a series of points)
-        count = fread(&numpoints, sizeof(ClipperLib::cInt), 1, f); if (count!=1) CONFESS("could not read path file!");
-        pp->clear();
-        pp->resize(numpoints);
-        for (ClipperLib::Path::iterator p = pp->begin(); p != pp->end(); ++p) {
-          //read point
-          count = fread(&p->X, sizeof(ClipperLib::cInt), 1, f);    if (count!=1) CONFESS("could not read path file!");
-          count = fread(&p->Y, sizeof(ClipperLib::cInt), 1, f);    if (count!=1) CONFESS("could not read path file!");
-          if (p->X<bb.min.x) bb.min.x = p->X;
-          if (p->X>bb.max.x) bb.max.x = p->X;
-          if (p->Y<bb.min.y) bb.min.y = p->Y;
-          if (p->Y>bb.max.y) bb.max.y = p->Y;
+          //read numpoints
+          if (fread(&numpoints, sizeof(ClipperLib::cInt), 1, f)!=1) CONFESS_AND_EXIT("could not read path file, record %d, path %d!", r, pp-paths.begin());
+          pp->clear();
+          pp->resize(numpoints);
+          //read points
+          std::vector<ClipperLib::DoublePoint>::iterator dit;
+          if (isInt64) {
+            if (fread(&(pp->front()), sizeof(ClipperLib::cInt)*2, numpoints, f)!=numpoints) CONFESS_AND_EXIT("could not read path file, record %d, path %d!", r, pp-paths.begin());
+          } else {
+            dpath.resize(numpoints);
+            if (fread(&(dpath.front()), sizeof(double)*2, numpoints, f)!=numpoints) CONFESS_AND_EXIT("could not read path file, record %d, path %d!", r, pp-paths.begin());
+            dit = dpath.begin();
+          }
+          for (ClipperLib::Path::iterator p = pp->begin(); p != pp->end(); ++p) {
+              if (isInt64) {
+                p->X *= adapt_fac;
+                p->Y *= adapt_fac;
+              } else {
+                p->X = dit->X/SCALING_FACTOR;
+                p->Y = dit->Y/SCALING_FACTOR;
+                ++dit;
+              }
+              if (p->X<bb.min.x) bb.min.x = p->X;
+              if (p->X>bb.max.x) bb.max.x = p->X;
+              if (p->Y<bb.min.y) bb.min.y = p->Y;
+              if (p->Y>bb.max.y) bb.max.y = p->Y;
+          }
+          if (!isInt64) dpath.clear();
+      }
+      
+      //convert to Slic3r data format
+      ClipperPaths_to_Slic3rExPolygons(paths, &expolygons);
+      paths.clear();
+
+      if (!expolygons.empty()) {
+        //simplify polygons (crucial to shorten computing times for the rest of the pipeline, given that pathsfiles usually contain slices at very big resolution)
+        for (ExPolygons::iterator exp = expolygons.begin(); exp != expolygons.end(); ++exp) {
+            //TODO: tolerance should be configurable, but for now it is hardcoded
+            exp->simplify_p(SCALED_RESOLUTION/2, &polygons);
+        }
+        expolygons = union_ex(polygons);
+        polygons.clear();
+      }
+
+#ifdef DEBUG_IMPORT_PATHS
+      BoundingBox bbAll1;
+      if (!expolygons.empty()) {
+        bbAll1 = expolygons.begin()->contour.bounding_box();
+        for (ExPolygons::iterator exp = expolygons.begin()+1; exp != expolygons.end(); ++exp) {
+            bbAll1.merge(exp->contour.bounding_box());
         }
       }
-      //populate the layer from the file contents
-      ClipperPaths_to_Slic3rExPolygons(paths, &expolygons);
-      Layer * layer = o->add_layer(i, height, print_z, slice_z);
-      if ((lc=o->layer_count())>=2) {
-        o->get_layer(lc-2)->upper_layer = o->get_layer(lc-1);
-        o->get_layer(lc-1)->lower_layer = o->get_layer(lc-2);
+#endif
+      
+      //setup Slic3r object hierarchy
+      if (printobjects[ntool]==NULL) {
+          printobjects[ntool] = new PrintObject(this, NULL, bb);
+          printregions[ntool] = this->add_region();
       }
-      LayerRegion* layerregion = layer->add_region(printregion);
+      //set these only after making sure that the effective contours are not empty
+      previousZ[ntool]        = z;
+      previousZRecord[ntool]  = r;
+      
+      //do Z limits book-keeping and setup Slic3r data holder object
+      LayerRegion* currentlayerregion;
+      if (!sameZAsPrevious) {
+          /* //INCORRECT: neither radiusZ nor radiusX have anything to do with actual Z slice values!!!
+          if (useSched) {
+            minZ = z - radiusZ[ntool];
+            maxZ = z + radiusZ[ntool];
+          } else {
+            minZ = z - radiusX[ntool];
+            maxZ = z + radiusX[ntool];
+          }
+          height = maxZ-minZ;*/
+          if (!getZLimits(ntool, z, zss, useSched, radiusX, radiusZ, height, minZ, maxZ)) CONFESS_AND_EXIT("Could not find z=%f for record %d", z, r);
+          
+          if (minZ<bb.min.z) bb.min.z = minZ;
+          if (maxZ>bb.max.z) bb.max.z = maxZ;
+          
+          PrintObject *obj = printobjects[ntool];
+          
+          //layers with id=0 must be handled with care, because they trigger lots of alternative code paths
+          if (layerIds[ntool]==0) {
+            bool addEmptyInitialLayer;
+            switch (initialLayerMode) {
+              case InitialLayerTool0:          addEmptyInitialLayer = ntool!=0;     break; //in this case, we only have a non-empty initial layer for the tool 0
+              case InitialLayerMinimalZ:       addEmptyInitialLayer = z!=minimal_z; break; //in this case, we only have a non-empty initial layer for layers at minimal Z
+              case InitialLayerAlways:         addEmptyInitialLayer = true;         break;
+              case InitialLayerNever: default: addEmptyInitialLayer = false;
+            };
+            if (addEmptyInitialLayer) {
+#ifdef DEBUG_IMPORT_PATHS
+              printf("ADDING EMPTY LAYER: record %d, ntool=%d, id=%d, height=%g, maxZ=%g, z=%g\n", r, ntool, layerIds[ntool], height, maxZ-height, z-height);
+#endif
+              obj->add_layer(layerIds[ntool]++, height, maxZ-height, z-height);
+            }
+          }
+#ifdef DEBUG_IMPORT_PATHS
+          printf("ADDING LAYER: record %d, ntool=%d, id=%d, height=%g, maxZ=%g, z=%g\n", r, ntool, layerIds[ntool], height, maxZ, z);
+          if (!expolygons.empty()) {
+            printf("    ->BOUNDINGBOX INITIAL: XMIN=%lld, XMAX=%lld, YMIN=%lld, YMAX=%lld\n", bbAll1.min.x, bbAll1.max.x, bbAll1.min.y, bbAll1.max.y);
+            printf("    ->BOUNDINGBOX UNSCALE: XMIN=%g, XMAX=%g, YMIN=%g, YMAX=%g\n", unscale(bbAll1.min.x), unscale(bbAll1.max.x), unscale(bbAll1.min.y), unscale(bbAll1.max.y));
+          }
+#endif
+          Layer * layer = obj->add_layer(layerIds[ntool]++, height, maxZ, z);
+          int lc = obj->layer_count();
+          if (lc>=2) {
+              obj->get_layer(lc-2)->upper_layer = obj->get_layer(lc-1);
+              obj->get_layer(lc-1)->lower_layer = obj->get_layer(lc-2);
+          }
+          currentlayerregion = layerregions[ntool] = layer->add_region(printregions[ntool]);
+      } else {
+          currentlayerregion = layerregions[ntool];
+      }
+      
+      //transfer data to Slic3r data holder object
       for (ExPolygons::iterator exp = expolygons.begin(); exp != expolygons.end(); ++exp) {
-        layerregion->slices.surfaces.push_back(Surface(stInternal, *exp));
+          currentlayerregion->slices.surfaces.push_back(Surface(stInternal, *exp));
       }
+      expolygons.clear();
     }
     fclose(f);
-    bb.min.x = unscale(bb.min.x);
-    bb.min.y = unscale(bb.min.y);
-    bb.max.x = unscale(bb.max.x);
-    bb.max.y = unscale(bb.max.y);
-    o->set_modobj_bbox(bb);
-    PrintRegionConfig config = this->default_region_config;
-    printregion->config.apply(config);
-    //region_id = this->regions.size() - 1;
-    // assign volume to region
-    //o->add_region_volume(region_id, volume_id);
-
-    // initialize and add new print object
-    objects.push_back(o);
-    // apply config to print object
-    o->config.apply(this->default_object_config);
+    
+    //apply BoundingBoxes and extruder configurations to Slic3r objects
+    for (int ntool=0; ntool<numtools; ++ntool) {
+        if (printobjects[ntool]==NULL) continue;
+        BoundingBoxf3 &bb = bbs[ntool];
+        bb.min.x = unscale(bb.min.x);
+        bb.min.y = unscale(bb.min.y);
+        bb.max.x = unscale(bb.max.x);
+        bb.max.y = unscale(bb.max.y);
+        PrintObject *obj = printobjects[ntool];
+        PrintRegion *reg = printregions[ntool];
+        obj->set_modobj_bbox(bb);
+#ifdef DEBUG_IMPORT_PATHS
+        printf("FINAL BOUNDING BOX FOR ntool=%d\n", ntool);
+        printf("   xmax:%g\n", bb.max.x);
+        printf("   xmin:%g\n", bb.min.x);
+        printf("   xsiz:%g\n", bb.max.x-bb.min.x);
+        printf("   ymax:%g\n", bb.max.y);
+        printf("   ymax:%g\n", bb.min.y);
+        printf("   ysiz:%g\n", bb.max.y-bb.min.y);
+        printf("   zmax:%g\n", bb.max.z);
+        printf("   zmax:%g\n", bb.min.z);
+        printf("   zsiz:%g\n", bb.max.z-bb.min.z);
+        printf("FINAL int64 size FOR ntool=%d\n", ntool);
+        printf("   x:%lld\n", obj->size.x);
+        printf("   y:%lld\n", obj->size.y);
+        printf("   z:%lld\n", obj->size.z);
+#endif
+        reg->config.apply(this->default_region_config);
+        // initialize and add new print object
+        objects.push_back(obj);
+        // apply config to print object
+        obj->config.apply(this->default_object_config);
+        
+        if (numtools>1) {
+            size_t extruder_id = ntool+1;
+            //we have to generate a new DynamicPrintConfig object for each extruder value
+            //because of the way DynamicPrintConfig::normalize() works
+            DynamicPrintConfig dynamicConfig;
+            dynamicConfig.opt<ConfigOptionInt>("extruder", true)->value = extruder_id;
+            dynamicConfig.normalize();
+            reg->config.apply(dynamicConfig, true);
+            obj->config.apply(dynamicConfig, true);
+        }
+    }
+#ifdef DEBUG_IMPORT_PATHS
+    fflush(stdout);
+#endif
 }
+
+//////////////////////////////////////////////////////////////
+////END CODE TO IMPORT DIRECTLY SLICES FROM PATHFILES/////////
+//////////////////////////////////////////////////////////////
 
 /*  Caller is responsible for supplying models whose objects don't collide
     and have explicit instance positions */
@@ -766,6 +1098,8 @@ Print::validate() const
         
         FOREACH_OBJECT(this, i_object) {
             PrintObject* object = *i_object;
+            
+            if (object->model_object()==NULL) continue;
             
             // validate first_layer_height
             double first_layer_height = object->config.get_abs_value("first_layer_height");

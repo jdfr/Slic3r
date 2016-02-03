@@ -296,6 +296,30 @@ Usage: slic3r.pl [ OPTIONS ] [ file.stl ] [ file2.stl ] ...
                         them as <name>_upper.stl and <name>_lower.stl
     --split             Split the shells contained in given STL file into several STL files
     --info              Output information about the supplied file(s) and exit
+    --import-paths=f    EXPERIMENTAL option to directly load slices form file "f". It is
+                        invoked as:
+                               slic3r.pl [other options] --import-paths file.paths x
+                        The trailing 'x' is mandatory. This option skips slicing a 3D mesh
+                        file and instead directly loads slices from a special file. The
+                        file format is fairly simple, and it can be deduced from the
+                        Print::add_print_from_slices() method in xs/src/libslic3r/Print.cpp
+                        KNOWN ISSUES:
+                           -Many sanity checks are disabled because they require access
+                           to the original mesh that slic3r supposes to have been loaded.
+                           In consequence, many common error conditions are not detected.
+                           -Because slic3r uses slice heights to feed heuristics about
+                           extruder flow, the slices should be sanely spaced (otherwise,
+                           slic3r may hang or error out).
+                           -In a fairly common failure mode, slic3r ends normally and
+                           generates a gcode file, but G1 commands have have impossibly big X,
+                           Y and E coordinates. This is triggered, for example, by slices with
+                           negative coordinates, but also for files containing otherwise
+                           perfectly sane slices (cursory debugging suggests that somewhere
+                           before making skirting Slic3r making something wrong: when this
+                           problem appears, the points from which the convex hull is computed
+                           in make_skirt have already wrong coordinates.
+                        To sum up, this option may work out of the box, require some fiddling,
+                        or not work at all, depending on the input.
     
 $j
   GUI options:

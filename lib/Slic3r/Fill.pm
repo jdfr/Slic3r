@@ -232,7 +232,10 @@ sub make_fill {
         } else {
             $f->spacing($flow->spacing);
         }
-        
+        if ($layerm->layer->object->no_model_object && ($f->spacing < 0)) {
+          die "Slic3r was called with --import-paths and has computed negative spacing for a filling. This will likely hang the computer while allocating huge amounts of memory, so the slicing is being aborted right now. This is very probably caused by incorrect Z spacing in the imported paths.";
+        }
+         
         $f->layer_id($layerm->layer->id);
         $f->z($layerm->layer->print_z);
         $f->angle(deg2rad($layerm->region->config->fill_angle));
