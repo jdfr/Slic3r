@@ -1,4 +1,24 @@
-Slic3r's C++ sources do not compile at the moment in Visual Studio, so mingw-64 is used. This project can also be compiled in Linux/GCC.
+---------------------------------------------
+--SLIC3R: STANDALONE FORK--------------------
+---------------------------------------------
+
+This is a fork of Slic3r, with two main purposes:
+
+    -it can be compiled with CMake into a command-line application that uses Slic3r's excellent code base to slice a 3D mesh.
+     This application uses stdin and stdout to communicate with a controller application that processes the slices.
+    
+    -it can be compiled as usual to produce a modified version of Slic3r with a command-line option to accept as input a file
+     that contains several sets of slices in a custom format, where each set of slices is intended to be printed with a different
+     extruder. In this way, Slic3r can be used as a backend to do optimized infilling, generation of support material,
+     reprap gcode generation, an in general combine an awesome piece of software with slice processing.
+
+
+---------------------------------------------
+--COMPILING----------------------------------
+---------------------------------------------
+
+
+In Windows, Slic3r's C++ sources do not compile at the moment in Visual Studio, so mingw-64 is used. This project can also be compiled in Linux/GCC.
 
 steps:
 

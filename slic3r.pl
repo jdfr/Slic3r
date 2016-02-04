@@ -296,28 +296,33 @@ Usage: slic3r.pl [ OPTIONS ] [ file.stl ] [ file2.stl ] ...
                         them as <name>_upper.stl and <name>_lower.stl
     --split             Split the shells contained in given STL file into several STL files
     --info              Output information about the supplied file(s) and exit
-    --import-paths=f    EXPERIMENTAL option to directly load slices form file "f". It is
-                        invoked as:
+    --import-paths=f    EXPERIMENTAL option to directly load slices for multi-extruding
+                        from file "f". It is invoked as:
                                slic3r.pl [other options] --import-paths file.paths x
-                        The trailing 'x' is mandatory. This option skips slicing a 3D mesh
-                        file and instead directly loads slices from a special file. The
-                        file format is fairly simple, and it can be deduced from the
-                        Print::add_print_from_slices() method in xs/src/libslic3r/Print.cpp
+                        The trailing 'x' is mandatory (because we do minimal changes to
+                        normal command-line processing codepaths). This option skips
+                        slicing a 3D mesh file and instead directly loads slices from
+                        a special file. The file format is fairly simple, and it can
+                        be deduced from the Print::add_print_from_slices() method
+                        in xs/src/libslic3r/Print.cpp
                         KNOWN ISSUES:
                            -Many sanity checks are disabled because they require access
-                           to the original mesh that slic3r supposes to have been loaded.
+                           to the original mesh that slic3r supposes to have be present.
                            In consequence, many common error conditions are not detected.
+                           Other sanity checks are disabled in order to provide more control,
+                           but as they saying goes: with great power comes great
+                           responsibility.
                            -Because slic3r uses slice heights to feed heuristics about
                            extruder flow, the slices should be sanely spaced (otherwise,
-                           slic3r may hang or error out).
-                           -In a fairly common failure mode, slic3r ends normally and
-                           generates a gcode file, but G1 commands have have impossibly big X,
-                           Y and E coordinates. This is triggered, for example, by slices with
-                           negative coordinates, but also for files containing otherwise
-                           perfectly sane slices (cursory debugging suggests that somewhere
-                           before making skirting Slic3r making something wrong: when this
-                           problem appears, the points from which the convex hull is computed
-                           in make_skirt have already wrong coordinates.
+                           slic3r may hang or error out, or the gcode may be grossly
+                           deformed, innacurate, or physically impossible to execute).
+                           -Slic3r's configuration is not modified, so the configuration
+                           supplied with the option "--load" should match the characteristics
+                           of the slices. In particular, nozzle diameters should correlate
+                           with the corresponding slice heights.
+                           -If extruders with very different nozzle diameters are used,
+                           Slic3r's configuration should be updated so all *_extrusion_width
+                           parameters should be either default (0) or expressed as percentages.
                         To sum up, this option may work out of the box, require some fiddling,
                         or not work at all, depending on the input.
     

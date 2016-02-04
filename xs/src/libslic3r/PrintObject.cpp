@@ -119,7 +119,7 @@ PrintObject::reload_model_instances()
 {
     Points copies;
     if (this->_model_object==NULL) {
-      copies.push_back(Point::new_scale(0, 0));
+      copies.push_back(Point(-this->_copies_shift.x, -this->_copies_shift.y));
     } else for (ModelInstancePtrs::const_iterator i = this->_model_object->instances.begin(); i != this->_model_object->instances.end(); ++i) {
         copies.push_back(Point::new_scale((*i)->offset.x, (*i)->offset.y));
     }
