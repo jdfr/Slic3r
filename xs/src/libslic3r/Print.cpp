@@ -557,10 +557,8 @@ Print::add_print_from_slices(std::string slicesInputFile, const Pointf *center)
     radiusZ.clear(); radiusZ.resize(numtools);
     for (int k = 0; k < numtools; ++k) {
         if (fread(&(radiusX[k]), sizeof(double), 1, f) != 1) CONFESS_AND_EXIT("Could not read radiusX for tool ", k);
-        printf("Mira, radiusX[%d]=%g\n", k, radiusX[k]);
         if (!useSched) continue;
         if (fread(&(radiusZ[k]), sizeof(double), 1, f) != 1) CONFESS_AND_EXIT("Could not read radiusZ for tool ", k);
-        printf("Mira, radiusZ[%d]=%g\n", k, radiusZ[k]);
     }
 
     if (fread(&numRecords, sizeof(numRecords), 1, f) != 1) CONFESS_AND_EXIT("could not read numRecords from file!");
@@ -571,12 +569,19 @@ Print::add_print_from_slices(std::string slicesInputFile, const Pointf *center)
     std::vector<PrintObject*> printobjects(numtools, NULL);
     std::vector<LayerRegion*> layerregions(numtools, NULL);
     std::vector<BoundingBox> bbs(numtools);
+    std::vector<bool> firstTime(numtools, true);
     std::vector<bool> bbset(numtools, false);
     std::vector<double> minz(numtools);
     std::vector<double> maxz(numtools);
     std::vector<double> previousZ(numtools);
     std::vector<int> previousZRecord(numtools);
     std::vector<int> layerIds(numtools, 0);
+    
+    //Slic3r objects must be created in strict order, otherwise Slic3r gets the extruder indexes wrong
+    for (int ntool=0; ntool<numtools; ++ntool) {
+          printobjects[ntool] = new PrintObject(this);
+          printregions[ntool] = this->add_region();
+    }
 
     BoundingBox bball;
     bool bballset = false;
@@ -625,7 +630,7 @@ Print::add_print_from_slices(std::string slicesInputFile, const Pointf *center)
       BoundingBox &bb      = bbs[ntool];
       bool sameZAsPrevious = false;
       bool thisbbset       = bbset[ntool];
-      if (printobjects[ntool]==NULL) {
+      if (firstTime[ntool]) {
           //prepare object without proper bb
           minz[ntool] =  INFINITY;
           maxz[ntool] = -INFINITY;
@@ -715,11 +720,7 @@ Print::add_print_from_slices(std::string slicesInputFile, const Pointf *center)
       }
 #endif
       
-      //setup Slic3r object hierarchy
-      if (printobjects[ntool]==NULL) {
-          printobjects[ntool] = new PrintObject(this);
-          printregions[ntool] = this->add_region();
-      }
+      firstTime[ntool] = false;
       //set these only after making sure that the effective contours are not empty
       previousZ[ntool]        = z;
       previousZRecord[ntool]  = r;
@@ -775,10 +776,12 @@ Print::add_print_from_slices(std::string slicesInputFile, const Pointf *center)
           /*Extruders are indexed by LayerRegions. Each layer region has an id depending on its inserting order in the Layer
             BUT EACH LAYER expects to have a LayerRegion for each PrintRegion.
             So, add non-used LayerRegions so the LayerRegion for this Layer has the approperiate id!*/
-          for (int ntprev=0; ntprev<ntool; ++ntprev) {
-            layer->add_region(printregions[ntprev]);
+          for (int nt=0; nt<numtools; ++nt) {
+            LayerRegion* tmp = layer->add_region(printregions[ntool]);
+            if (nt==ntool) {
+              currentlayerregion = layerregions[ntool] = tmp;
+            }
           }
-          currentlayerregion = layerregions[ntool] = layer->add_region(printregions[ntool]);
       } else {
 #ifdef DEBUG_IMPORT_PATHS
               printf("ADDING SLICE TO EXISTING LAYER: record %d, ntool=%d, id=%d, height=%g, maxZ=%g, z=%g\n", r, ntool, layerIds[ntool], height, maxZ-height, z-height);
@@ -804,7 +807,6 @@ Print::add_print_from_slices(std::string slicesInputFile, const Pointf *center)
 #endif
     //apply BoundingBoxes and extruder configurations to Slic3r objects
     for (int ntool=0; ntool<numtools; ++ntool) {
-        if (printobjects[ntool]==NULL) continue;
         BoundingBox &bb = bbs[ntool];
         BoundingBoxf3 bbf3;
         bbf3.min.x      = unscale(bb.min.x);
