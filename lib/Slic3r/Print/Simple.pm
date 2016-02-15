@@ -80,8 +80,13 @@ sub set_model {
 sub set_paths_file {
     my ($self, $filepath) = @_;
     # make method idempotent so that the object is reusable
+    my $center;
+    {
+        my $bed_shape = Slic3r::Polygon->new_scale(@{$self->_print->config->bed_shape});
+        $center = Slic3r::Pointf->new_unscale(@{$bed_shape->bounding_box->center});
+    }
     $self->_print->clear_objects;
-    $self->_print->add_print_from_slices($filepath);
+    $self->_print->add_print_from_slices($filepath, $center);
     $self->_print->setOutputPath($filepath);
 }
 

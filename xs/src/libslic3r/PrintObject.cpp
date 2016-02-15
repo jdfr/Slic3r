@@ -5,12 +5,19 @@
 
 namespace Slic3r {
 
+PrintObject::PrintObject(Print* print)
+:   typed_slices(false),
+    _print(print),
+    _model_object(NULL)
+{
+}
+
 PrintObject::PrintObject(Print* print, ModelObject* model_object, const BoundingBoxf3 &modobj_bbox)
 :   typed_slices(false),
     _print(print),
     _model_object(model_object)
 {
-    set_modobj_bbox(modobj_bbox);
+    set_modobj_bbox(modobj_bbox, true);
     
     this->reload_model_instances();
     if (model_object==NULL) return; //in this case we will be adding objects sliced outside slic3r
@@ -22,7 +29,7 @@ PrintObject::~PrintObject()
 }
 
 void
-PrintObject::set_modobj_bbox(const BoundingBoxf3 &modobj_bbox)
+PrintObject::set_modobj_bbox(const BoundingBoxf3 &modobj_bbox, bool do_copies_shift)
 {
     // Compute the translation to be applied to our meshes so that we work with smaller coordinates
     {
@@ -32,8 +39,11 @@ PrintObject::set_modobj_bbox(const BoundingBoxf3 &modobj_bbox)
         // don't assume it's already aligned and we don't alter the original position in model.
         // We store the XY translation so that we can place copies correctly in the output G-code
         // (copies are expressed in G-code coordinates and this translation is not publicly exposed).
-        this->_copies_shift = Point(
-            scale_(modobj_bbox.min.x), scale_(modobj_bbox.min.y));
+        if (do_copies_shift) {
+          this->_copies_shift = Point(scale_(modobj_bbox.min.x), scale_(modobj_bbox.min.y));
+        } else {
+          this->_copies_shift = Point(0, 0);
+        }
 
         // Scale the object size and store it
         Pointf3 size = modobj_bbox.size();
@@ -119,7 +129,7 @@ PrintObject::reload_model_instances()
 {
     Points copies;
     if (this->_model_object==NULL) {
-      copies.push_back(Point(-this->_copies_shift.x, -this->_copies_shift.y));
+      copies.push_back(Point(0, 0));
     } else for (ModelInstancePtrs::const_iterator i = this->_model_object->instances.begin(); i != this->_model_object->instances.end(); ++i) {
         copies.push_back(Point::new_scale((*i)->offset.x, (*i)->offset.y));
     }

@@ -115,7 +115,7 @@ class PrintObject
     bool set_copies(const Points &points);
     bool reload_model_instances();
     BoundingBox bounding_box() const;
-    void set_modobj_bbox(const BoundingBoxf3 &modobj_bbox);
+    void set_modobj_bbox(const BoundingBoxf3 &modobj_bbox, bool do_copies_shift);
     
     // adds region_id, too, if necessary
     void add_region_volume(int region_id, int volume_id);
@@ -149,6 +149,7 @@ class PrintObject
 
     // TODO: call model_object->get_bounding_box() instead of accepting
         // parameter
+    PrintObject(Print* print);
     PrintObject(Print* print, ModelObject* model_object, const BoundingBoxf3 &modobj_bbox);
     ~PrintObject();
 };
@@ -200,7 +201,7 @@ class Print
     bool invalidate_all_steps();
     bool step_done(PrintObjectStep step) const;
     
-    void add_print_from_slices(std::string slicesInputFile);
+    void add_print_from_slices(std::string slicesInputFile, const Pointf *center);
     void add_model_object(ModelObject* model_object, int idx = -1);
     bool apply_config(DynamicPrintConfig config);
     bool has_infinite_skirt() const;

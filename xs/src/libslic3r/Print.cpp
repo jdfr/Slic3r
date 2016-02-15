@@ -525,15 +525,15 @@ bool getZLimits(int ntool, double z, std::vector<std::vector<double> > &zss, boo
 }
 
 void
-Print::add_print_from_slices(std::string slicesInputFile)
+Print::add_print_from_slices(std::string slicesInputFile, const Pointf *center)
 {
     if (sizeof(ClipperLib::cInt)!=sizeof(double)) CONFESS_AND_EXIT("method add_print_from_slices() would fail because sizeof(double)==%d but sizeof(ClipperLib::cInt)==%d!", sizeof(double), sizeof(ClipperLib::cInt));
     
     //TODO: this should be configurable from command line, but, for now it is set at compile-time
-    InitialLayerMode initialLayerMode = InitialLayerTool0; //only the 0-th will have a non-empty layer with id=0
+    //InitialLayerMode initialLayerMode = InitialLayerTool0; //only the 0-th will have a non-empty layer with id=0
     //InitialLayerMode initialLayerMode = InitialLayerMinimalZ; //all tools with a layer at minimal Z will have non-empty layers with id=0
     //InitialLayerMode initialLayerMode = InitialLayerAlways; //all tools will have non-empty layers with id=0
-    //InitialLayerMode initialLayerMode = InitialLayerNever; //no tool will have a non-empty layer with id=0
+    InitialLayerMode initialLayerMode = InitialLayerNever; //no tool will have a non-empty layer with id=0
     
     /*To compute Z boundaries between slices, we need to know the Z values of their immediate neighbours up and down.
      * While we can do this in one pass, it would make the code quite a bit more complex.
@@ -570,15 +570,21 @@ Print::add_print_from_slices(std::string slicesInputFile)
     std::vector<PrintRegion*> printregions(numtools, NULL);
     std::vector<PrintObject*> printobjects(numtools, NULL);
     std::vector<LayerRegion*> layerregions(numtools, NULL);
-    std::vector<BoundingBoxf3> bbs(numtools);
+    std::vector<BoundingBox> bbs(numtools);
+    std::vector<bool> bbset(numtools, false);
+    std::vector<double> minz(numtools);
+    std::vector<double> maxz(numtools);
     std::vector<double> previousZ(numtools);
     std::vector<int> previousZRecord(numtools);
     std::vector<int> layerIds(numtools, 0);
 
+    BoundingBox bball;
+    bool bballset = false;
     ClipperLib::Paths paths;
     ExPolygons expolygons;
     Polygons polygons;
     std::vector<ClipperLib::DoublePoint> dpath;
+    Point centeri(scale_(center->x), scale_(center->y));
     
     //read file
     for (int r=0; r<numRecords; ++r) {
@@ -616,12 +622,13 @@ Print::add_print_from_slices(std::string slicesInputFile)
       }
       
       //do Z value book-keeping and setup Slic3r object hierarchy
-      BoundingBoxf3 &bb    = bbs[ntool];
+      BoundingBox &bb      = bbs[ntool];
       bool sameZAsPrevious = false;
+      bool thisbbset       = bbset[ntool];
       if (printobjects[ntool]==NULL) {
           //prepare object without proper bb
-          bb.min.x = bb.min.y = bb.min.z =  INFINITY;
-          bb.max.x = bb.max.y = bb.max.z = -INFINITY;
+          minz[ntool] =  INFINITY;
+          maxz[ntool] = -INFINITY;
       } else {
           if (previousZ[ntool]>z) CONFESS_AND_EXIT("Slic3r requires the slices for each tool to be ordered by monotonically increasing Z value, but this was not true for tool %d: record %d had z=%f, while record %d has z=%f", ntool, previousZRecord[ntool], previousZ[ntool], r, z);
           sameZAsPrevious = previousZ[ntool]==z;
@@ -654,13 +661,35 @@ Print::add_print_from_slices(std::string slicesInputFile)
                 p->Y = dit->Y/SCALING_FACTOR;
                 ++dit;
               }
-              if (p->X<bb.min.x) bb.min.x = p->X;
-              if (p->X>bb.max.x) bb.max.x = p->X;
-              if (p->Y<bb.min.y) bb.min.y = p->Y;
-              if (p->Y>bb.max.y) bb.max.y = p->Y;
+              
+              if (thisbbset) {
+                if (p->X<bb.min.x) bb.min.x = p->X;
+                if (p->X>bb.max.x) bb.max.x = p->X;
+                if (p->Y<bb.min.y) bb.min.y = p->Y;
+                if (p->Y>bb.max.y) bb.max.y = p->Y;
+              } else {
+                bb.min.x = p->X;
+                bb.max.x = p->X;
+                bb.min.y = p->Y;
+                bb.max.y = p->Y;
+                thisbbset = true;
+              }
+              if (bballset) {
+                if (p->X<bball.min.x) bball.min.x = p->X;
+                if (p->X>bball.max.x) bball.max.x = p->X;
+                if (p->Y<bball.min.y) bball.min.y = p->Y;
+                if (p->Y>bball.max.y) bball.max.y = p->Y;
+              } else {
+                bball.min.x = p->X;
+                bball.max.x = p->X;
+                bball.min.y = p->Y;
+                bball.max.y = p->Y;
+                bballset = true;
+              }
           }
           if (!isInt64) dpath.clear();
       }
+      bbset[ntool] = thisbbset;
       
       //convert to Slic3r data format
       ClipperPaths_to_Slic3rExPolygons(paths, &expolygons);
@@ -688,7 +717,7 @@ Print::add_print_from_slices(std::string slicesInputFile)
       
       //setup Slic3r object hierarchy
       if (printobjects[ntool]==NULL) {
-          printobjects[ntool] = new PrintObject(this, NULL, bb);
+          printobjects[ntool] = new PrintObject(this);
           printregions[ntool] = this->add_region();
       }
       //set these only after making sure that the effective contours are not empty
@@ -709,8 +738,8 @@ Print::add_print_from_slices(std::string slicesInputFile)
           height = maxZ-minZ;*/
           if (!getZLimits(ntool, z, zss, useSched, radiusX, radiusZ, height, minZ, maxZ)) CONFESS_AND_EXIT("Could not find z=%f for record %d", z, r);
           
-          if (minZ<bb.min.z) bb.min.z = minZ;
-          if (maxZ>bb.max.z) bb.max.z = maxZ;
+          if (minZ<minz[ntool]) minz[ntool] = minZ;
+          if (maxZ>maxz[ntool]) maxz[ntool] = maxZ;
           
           PrintObject *obj = printobjects[ntool];
           
@@ -743,8 +772,17 @@ Print::add_print_from_slices(std::string slicesInputFile)
               obj->get_layer(lc-2)->upper_layer = obj->get_layer(lc-1);
               obj->get_layer(lc-1)->lower_layer = obj->get_layer(lc-2);
           }
+          /*Extruders are indexed by LayerRegions. Each layer region has an id depending on its inserting order in the Layer
+            BUT EACH LAYER expects to have a LayerRegion for each PrintRegion.
+            So, add non-used LayerRegions so the LayerRegion for this Layer has the approperiate id!*/
+          for (int ntprev=0; ntprev<ntool; ++ntprev) {
+            layer->add_region(printregions[ntprev]);
+          }
           currentlayerregion = layerregions[ntool] = layer->add_region(printregions[ntool]);
       } else {
+#ifdef DEBUG_IMPORT_PATHS
+              printf("ADDING SLICE TO EXISTING LAYER: record %d, ntool=%d, id=%d, height=%g, maxZ=%g, z=%g\n", r, ntool, layerIds[ntool], height, maxZ-height, z-height);
+#endif
           currentlayerregion = layerregions[ntool];
       }
       
@@ -756,33 +794,48 @@ Print::add_print_from_slices(std::string slicesInputFile)
     }
     fclose(f);
     
+    Size sizeall = bball.size();
+    coord_t shift_x = -bball.min.x + centeri.x - sizeall.x/2;
+    coord_t shift_y = -bball.min.y + centeri.y - sizeall.y/2;
+#ifdef DEBUG_IMPORT_PATHS
+    printf("FOR CENTER:\n");
+    printf("   x: %g (in int64: %lld), SHIFT in int64: %lld\n", center->x, centeri.x, shift_x);
+    printf("   y: %g (in int64: %lld), SHIFT in int64: %lld\n", center->y, centeri.y, shift_y);
+#endif
     //apply BoundingBoxes and extruder configurations to Slic3r objects
     for (int ntool=0; ntool<numtools; ++ntool) {
         if (printobjects[ntool]==NULL) continue;
-        BoundingBoxf3 &bb = bbs[ntool];
-        bb.min.x = unscale(bb.min.x);
-        bb.min.y = unscale(bb.min.y);
-        bb.max.x = unscale(bb.max.x);
-        bb.max.y = unscale(bb.max.y);
+        BoundingBox &bb = bbs[ntool];
+        BoundingBoxf3 bbf3;
+        bbf3.min.x      = unscale(bb.min.x);
+        bbf3.min.y      = unscale(bb.min.y);
+        bbf3.max.z      = maxz[ntool];
+        bbf3.max.x      = unscale(bb.max.x);
+        bbf3.max.y      = unscale(bb.max.y);
+        bbf3.min.z      = minz[ntool];
+        Size size       = bb.size();
+        
         PrintObject *obj = printobjects[ntool];
         PrintRegion *reg = printregions[ntool];
-        obj->set_modobj_bbox(bb);
+        obj->set_modobj_bbox(bbf3, false);
 #ifdef DEBUG_IMPORT_PATHS
         printf("FINAL BOUNDING BOX FOR ntool=%d\n", ntool);
-        printf("   xmax:%g\n", bb.max.x);
-        printf("   xmin:%g\n", bb.min.x);
-        printf("   xsiz:%g\n", bb.max.x-bb.min.x);
-        printf("   ymax:%g\n", bb.max.y);
-        printf("   ymax:%g\n", bb.min.y);
-        printf("   ysiz:%g\n", bb.max.y-bb.min.y);
-        printf("   zmax:%g\n", bb.max.z);
-        printf("   zmax:%g\n", bb.min.z);
-        printf("   zsiz:%g\n", bb.max.z-bb.min.z);
+        printf("   xmax:%g\n", bbf3.max.x);
+        printf("   xmin:%g\n", bbf3.min.x);
+        printf("   xsiz:%g\n", bbf3.max.x-bbf3.min.x);
+        printf("   ymax:%g\n", bbf3.max.y);
+        printf("   ymax:%g\n", bbf3.min.y);
+        printf("   ysiz:%g\n", bbf3.max.y-bbf3.min.y);
+        printf("   ymax:%g\n", bbf3.max.z);
+        printf("   ymax:%g\n", bbf3.min.z);
+        printf("   ysiz:%g\n", bbf3.max.z-bbf3.min.z);
         printf("FINAL int64 size FOR ntool=%d\n", ntool);
         printf("   x:%lld\n", obj->size.x);
         printf("   y:%lld\n", obj->size.y);
         printf("   z:%lld\n", obj->size.z);
 #endif
+        Points copy(1, Point(shift_x, shift_y));
+        obj->set_copies(copy);
         reg->config.apply(this->default_region_config);
         // initialize and add new print object
         objects.push_back(obj);

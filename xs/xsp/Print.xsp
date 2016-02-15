@@ -217,7 +217,7 @@ _constant()
     bool has_support_material() const;
     void auto_assign_extruders(ModelObject* model_object);
     
-    void add_print_from_slices(std::string slicesInputFile);
+    void add_print_from_slices(std::string slicesInputFile, Pointf *center);
     void add_model_object(ModelObject* model_object, int idx = -1);
     bool apply_config(DynamicPrintConfig* config)
         %code%{ RETVAL = THIS->apply_config(*config); %};
