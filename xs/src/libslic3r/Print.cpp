@@ -410,6 +410,12 @@ typedef union T64 {
     ClipperLib::cInt i;
     double d;
 } T64;
+typedef struct ZSpec {
+  double z;
+  double height;
+  bool useheight;
+} ZSpec;
+typedef std::vector<std::vector<ZSpec> > ZSpecsByTool;
 //configuration option
 enum InitialLayerMode {InitialLayerTool0, InitialLayerMinimalZ, InitialLayerAlways, InitialLayerNever};
 //some shorthands
@@ -427,7 +433,7 @@ enum InitialLayerMode {InitialLayerTool0, InitialLayerMinimalZ, InitialLayerAlwa
 //#define DEBUG_IMPORT_PATHS
 
 //read all Z values of contours from pathsfile
-bool getZValues(std::vector<std::vector<double> > &zss, double &minimal_z, std::string &file) {
+bool getZValues(ZSpecsByTool &zss, double &minimal_z, std::string &file) {
     //open pathsfile
     FILE  *f = fopen(file.c_str(), "rb");
     ClipperLib::cInt numtools, useSched, numRecords;
@@ -449,23 +455,31 @@ bool getZValues(std::vector<std::vector<double> > &zss, double &minimal_z, std::
 
     for (int r=0; r<numRecords; ++r) {
       ClipperLib::cInt totalSize, headerSize, type, ntool;
-      double z;
+      double z, height;
       
       if (fread(&totalSize,  sizeof(totalSize),  1, f) != 1) CONFESS_AND_EXIT_VAL(false, "could not read totalSize in record %d", r);
       if (fread(&headerSize, sizeof(headerSize), 1, f) != 1) CONFESS_AND_EXIT_VAL(false, "could not read headerSize in record %d", r);
-      alldata.resize(headerSize/sizeof(T64));
+      int numHR = headerSize/sizeof(T64);
+      alldata.resize(numHR);
       if (alldata.size() < 2) CONFESS_AND_EXIT_VAL(false, "bad headerSize field (%d) in record %d", headerSize, r);
       int numToRead = (int)(headerSize - 2 * sizeof(T64));
-      if (numToRead<5) CONFESS_AND_EXIT_VAL(false, "slice header too short for record %d", r);
+      if (numHR<5) CONFESS_AND_EXIT_VAL(false, "slice header too short for record %d", r);
       if (fread(&(alldata[2]), 1, numToRead, f) != numToRead) CONFESS_AND_EXIT_VAL(false, "could not read slice header for record %d", r);
       if(fseek(f, (long)(totalSize - headerSize), SEEK_CUR)!=0) CONFESS_AND_EXIT_VAL(false, "could not skip slice payload for record %d!", r);
       type       = alldata[2].i;
       ntool      = alldata[3].i;
       z          = alldata[4].d;
       
+      
       if (ntool>=numtools) CONFESS_AND_EXIT_VAL(false, "file had numtools=%d, but ntool=%d for record %d!", numtools, ntool, r);
       if (type==PATHTYPE_PROCESSED_CONTOUR) {
-        zss[ntool].push_back(z);
+        ZSpec spec;
+        spec.z = z;
+        spec.useheight = numHR>7;
+        if (spec.useheight) {
+          spec.height = alldata[7].d;
+        }
+        zss[ntool].push_back(spec);
       }
       if (z<minimal_z) {
         minimal_z = z;
@@ -476,48 +490,39 @@ bool getZValues(std::vector<std::vector<double> > &zss, double &minimal_z, std::
 }
 
 //compute Z limits for each slice from the Z values of its neighbors (assumes that Z values are
-bool getZLimits(int ntool, double z, std::vector<std::vector<double> > &zss, bool useSched, std::vector<double> &radiusX, std::vector<double> &radiusZ, double &height, double &minZ, double &maxZ) {
-  std::vector<double> &zs = zss[ntool];
+bool getZLimits(int ntool, double z, ZSpecsByTool &zss, bool useSched, std::vector<double> &radiusX, std::vector<double> &radiusZ, double &height, double &minZ, double &maxZ) {
+  std::vector<ZSpec> &zs = zss[ntool];
   int maxk = zs.size()-1;
   for (int k=0; k< zs.size(); ++k) {
-    if (zs[k]==z) {
-      /* //THIS IS INCORRECT IF THERE CAN BE SLICES WITH THE SAME NTOOL AND SAME Z VALUE
-      if (k==0) {
-        maxZ   = (z+zs[k+1])/2;
-        height = (maxZ-z)*2;
-        minZ   = maxZ-height;
-      } else if (k==maxk) {
-        minZ   = (z+zs[k-1])/2;
-        height = (z-minZ)*2;
-        maxZ   = minZ+height;
+    if (zs[k].z==z) {
+      if (zs[k].useheight) {
+        height = zs[k].height;
+        maxZ   = z+(height/2.0);
+        minZ   = z-(height/2.0);
       } else {
-        minZ   = (z+zs[k-1])/2;
-        maxZ   = (z+zs[k+1])/2;
+        int nextk = k+1;
+        int prevk = k-1;
+        while ( (nextk<=maxk) && (zs[nextk].z==z) ) {
+          ++nextk;
+        }
+        if (prevk>=0) {
+          minZ   = (z+zs[prevk].z)/2;
+          if (nextk<=maxk) {
+            maxZ   = (z+zs[nextk].z)/2;
+          } else {
+            maxZ   = z + (z-minZ);
+          }
+        } else {
+          if (nextk<=maxk) {
+            maxZ   = (z+zs[nextk].z)/2;
+          } else {
+            //in this case, we have only one slice. The only way we can solve this is by using radius data!
+            maxZ = z + (useSched ? radiusZ[ntool] : radiusX[ntool]);
+          }
+          minZ = z - (maxZ-z);
+        }
         height = maxZ-minZ;
       }
-      return true;*/
-      int nextk = k+1;
-      int prevk = k-1;
-      while ( (nextk<=maxk) && (zs[nextk]==z) ) {
-        ++nextk;
-      }
-      if (prevk>=0) {
-        minZ   = (z+zs[prevk])/2;
-        if (nextk<=maxk) {
-          maxZ   = (z+zs[nextk])/2;
-        } else {
-          maxZ   = z + (z-minZ);
-        }
-      } else {
-        if (nextk<=maxk) {
-          maxZ   = (z+zs[nextk])/2;
-        } else {
-          //in this case, we have only one slice. The only way we can solve this is by using radius data!
-          maxZ = z + (useSched ? radiusZ[ntool] : radiusX[ntool]);
-        }
-        minZ = z - (maxZ-z);
-      }
-      height = maxZ-minZ;
       return true;
     }
   }
@@ -539,7 +544,7 @@ Print::add_print_from_slices(std::string slicesInputFile, const Pointf *center)
      * While we can do this in one pass, it would make the code quite a bit more complex.
      * For now, let's do it in two passes. Hopefully, the first pass will be fast,
      * since we only read the record headers and use fseek() to skim over the record payloads*/
-    std::vector<std::vector<double> > zss;
+    ZSpecsByTool zss;
     double minimal_z;
     if (!getZValues(zss, minimal_z, slicesInputFile)) EARLY_EXIT;
     
