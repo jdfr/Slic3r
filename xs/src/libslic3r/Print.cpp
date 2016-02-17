@@ -782,7 +782,8 @@ Print::add_print_from_slices(std::string slicesInputFile, const Pointf *center)
             BUT EACH LAYER expects to have a LayerRegion for each PrintRegion.
             So, add non-used LayerRegions so the LayerRegion for this Layer has the approperiate id!*/
           for (int nt=0; nt<numtools; ++nt) {
-            LayerRegion* tmp = layer->add_region(printregions[ntool]);
+            //the algorithm in Layer::make_perimeters() requires to use all printRegions in each object, otherwise the perimeters end up assigned to the wrong extruder
+            LayerRegion* tmp = layer->add_region(printregions[nt]);
             if (nt==ntool) {
               currentlayerregion = layerregions[ntool] = tmp;
             }
