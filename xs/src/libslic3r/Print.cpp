@@ -410,6 +410,12 @@ typedef union T64 {
     ClipperLib::cInt i;
     double d;
 } T64;
+typedef struct VoxelFileSpec {
+    double xrad;
+    double zrad;
+    double zheight;
+    double z_applicationPoint;
+} VoxelFileSpec;
 typedef struct ZSpec {
   double z;
   double height;
@@ -433,19 +439,35 @@ enum InitialLayerMode {InitialLayerTool0, InitialLayerMinimalZ, InitialLayerAlwa
 //#define DEBUG_IMPORT_PATHS
 
 //read all Z values of contours from pathsfile
-bool getZValues(ZSpecsByTool &zss, double &minimal_z, std::string &file) {
+bool getZValues(std::vector<VoxelFileSpec> &voxels, ZSpecsByTool &zss, double &minimal_z, std::string &file) {
     //open pathsfile
     FILE  *f = fopen(file.c_str(), "rb");
     ClipperLib::cInt numtools, useSched, numRecords;
     minimal_z = INFINITY;
+    int version;
+    
+    fseek(f, 4, SEEK_CUR); //skip "PATH"
+    if (fread(&version, sizeof(version), 1, f) != 1) CONFESS_AND_EXIT_VAL(false, "could not read version from file!");
+    if (version != 0) CONFESS_AND_EXIT_VAL(false, "File has non-supported version!!!");
     
     //read file header
     if (fread(&numtools, sizeof(numtools), 1, f) != 1) CONFESS_AND_EXIT_VAL(false, "could not read numtools from file!");
     if (fread(&useSched, sizeof(useSched), 1, f) != 1) CONFESS_AND_EXIT_VAL(false, "could not read useSched from file!");
     
-    long numToSkip = sizeof(ClipperLib::cInt)*numtools;
-    if (useSched) numToSkip *= 2;
-    if (fseek(f, numToSkip, SEEK_CUR)!=0) CONFESS_AND_EXIT_VAL(false, "could not skip radiuses in file header!");
+    
+    voxels.clear();
+    voxels.resize(numtools);
+    for (int i=0; i<numtools; ++i) {
+        if (fread(&voxels[i].xrad,                 sizeof(double), 1, f) != 1) CONFESS_AND_EXIT_VAL(false, "could not read xrad from file!");
+        if (useSched) {
+          if (fread(&voxels[i].zrad,               sizeof(double), 1, f) != 1) CONFESS_AND_EXIT_VAL(false, "could not read zrad from file!");
+          if (fread(&voxels[i].zheight,            sizeof(double), 1, f) != 1) CONFESS_AND_EXIT_VAL(false, "could not read zheight from file!");
+          if (fread(&voxels[i].z_applicationPoint, sizeof(double), 1, f) != 1) CONFESS_AND_EXIT_VAL(false, "could not read z_app_point from file!");
+#ifdef DEBUG_IMPORT_PATHS
+          printf("For tool %d: xrad=%f, zrad=%f, zheight=%f, appPoint=%f\n", i, voxels[i].xrad, voxels[i].zrad, voxels[i].zheight, voxels[i].z_applicationPoint);
+#endif
+        }
+    }
 
     if (fread(&numRecords, sizeof(numRecords), 1, f) != 1) CONFESS_AND_EXIT_VAL(false, "could not read numRecords from file!");
     
@@ -470,8 +492,6 @@ bool getZValues(ZSpecsByTool &zss, double &minimal_z, std::string &file) {
       ntool      = alldata[3].i;
       z          = alldata[4].d;
       
-      
-      if (ntool>=numtools) CONFESS_AND_EXIT_VAL(false, "file had numtools=%d, but ntool=%d for record %d!", numtools, ntool, r);
       if (type==PATHTYPE_PROCESSED_CONTOUR) {
         ZSpec spec;
         spec.z = z;
@@ -490,15 +510,26 @@ bool getZValues(ZSpecsByTool &zss, double &minimal_z, std::string &file) {
 }
 
 //compute Z limits for each slice from the Z values of its neighbors (assumes that Z values are
-bool getZLimits(int ntool, double z, ZSpecsByTool &zss, bool useSched, std::vector<double> &radiusX, std::vector<double> &radiusZ, double &height, double &minZ, double &maxZ) {
+bool getZLimits(int ntool, double z, std::vector<VoxelFileSpec> &voxels, ZSpecsByTool &zss, bool useSched, double &height, double &minZ, double &maxZ) {
   std::vector<ZSpec> &zs = zss[ntool];
   int maxk = zs.size()-1;
+  //heuristics precedence: first additional header field, then Z params if useSched, then Z heights, then X radius
   for (int k=0; k< zs.size(); ++k) {
     if (zs[k].z==z) {
       if (zs[k].useheight) {
         height = zs[k].height;
         maxZ   = z+(height/2.0);
         minZ   = z-(height/2.0);
+#ifdef DEBUG_IMPORT_PATHS
+        printf("For z=%f, using ad hoc height: %f\n", z, height);
+#endif
+      } else if (useSched) {
+        minZ   = z - voxels[ntool].z_applicationPoint;
+        maxZ   = minZ + voxels[ntool].zheight;
+        height = voxels[ntool].zheight;
+#ifdef DEBUG_IMPORT_PATHS
+        printf("For z=%f, using supplied height: %f\n", z, height);
+#endif
       } else {
         int nextk = k+1;
         int prevk = k-1;
@@ -517,11 +548,14 @@ bool getZLimits(int ntool, double z, ZSpecsByTool &zss, bool useSched, std::vect
             maxZ   = (z+zs[nextk].z)/2;
           } else {
             //in this case, we have only one slice. The only way we can solve this is by using radius data!
-            maxZ = z + (useSched ? radiusZ[ntool] : radiusX[ntool]);
+            maxZ = z + voxels[ntool].xrad;
           }
           minZ = z - (maxZ-z);
         }
         height = maxZ-minZ;
+#ifdef DEBUG_IMPORT_PATHS
+        printf("For z=%f, inferring height: %f\n", z, height);
+#endif
       }
       return true;
     }
@@ -533,6 +567,7 @@ void
 Print::add_print_from_slices(std::string slicesInputFile, const Pointf *center)
 {
     if (sizeof(ClipperLib::cInt)!=sizeof(double)) CONFESS_AND_EXIT("method add_print_from_slices() would fail because sizeof(double)==%d but sizeof(ClipperLib::cInt)==%d!", sizeof(double), sizeof(ClipperLib::cInt));
+    if (sizeof(int)!=4) CONFESS_AND_EXIT("method add_print_from_slices() would fail because sizeof(int)!=4!");
     
     //TODO: this should be configurable from command line, but, for now it is set at compile-time
     //InitialLayerMode initialLayerMode = InitialLayerTool0; //only the 0-th will have a non-empty layer with id=0
@@ -545,26 +580,26 @@ Print::add_print_from_slices(std::string slicesInputFile, const Pointf *center)
      * For now, let's do it in two passes. Hopefully, the first pass will be fast,
      * since we only read the record headers and use fseek() to skim over the record payloads*/
     ZSpecsByTool zss;
+    std::vector<VoxelFileSpec> voxels;
     double minimal_z;
-    if (!getZValues(zss, minimal_z, slicesInputFile)) EARLY_EXIT;
+    if (!getZValues(voxels, zss, minimal_z, slicesInputFile)) EARLY_EXIT;
     
     //open pathsfile
     FILE  *f = fopen(slicesInputFile.c_str(), "rb");
+    int version;
     ClipperLib::cInt numtools, useSched, numRecords;
-    std::vector<double> radiusX, radiusZ;
+    
+    fseek(f, 4, SEEK_CUR); //skip "PATH"
+    if (fread(&version, sizeof(version), 1, f) != 1) CONFESS_AND_EXIT("could not read version from file!");
+    if (version != 0) CONFESS_AND_EXIT("File has non-supported version!!!");
     
     //read file header
     if (fread(&numtools, sizeof(numtools), 1, f) != 1) CONFESS_AND_EXIT("could not read numtools from file!");
     if (fread(&useSched, sizeof(useSched), 1, f) != 1) CONFESS_AND_EXIT("could not read useSched from file!");
 
-    //neither radiusX nor radiusZ are in scaled units
-    radiusX.clear(); radiusX.resize(numtools);
-    radiusZ.clear(); radiusZ.resize(numtools);
-    for (int k = 0; k < numtools; ++k) {
-        if (fread(&(radiusX[k]), sizeof(double), 1, f) != 1) CONFESS_AND_EXIT("Could not read radiusX for tool ", k);
-        if (!useSched) continue;
-        if (fread(&(radiusZ[k]), sizeof(double), 1, f) != 1) CONFESS_AND_EXIT("Could not read radiusZ for tool ", k);
-    }
+    long numToSkip = sizeof(ClipperLib::cInt)*numtools;
+    if (useSched) numToSkip *= 4;
+    if (fseek(f, numToSkip, SEEK_CUR)!=0) CONFESS_AND_EXIT("could not skip radiuses in file header!");
 
     if (fread(&numRecords, sizeof(numRecords), 1, f) != 1) CONFESS_AND_EXIT("could not read numRecords from file!");
     
@@ -575,7 +610,6 @@ Print::add_print_from_slices(std::string slicesInputFile, const Pointf *center)
     std::vector<LayerRegion*> layerregions(numtools, NULL);
     std::vector<BoundingBox> bbs(numtools);
     std::vector<bool> firstTime(numtools, true);
-    std::vector<bool> bbset(numtools, false);
     std::vector<double> minz(numtools);
     std::vector<double> maxz(numtools);
     std::vector<double> previousZ(numtools);
@@ -589,7 +623,6 @@ Print::add_print_from_slices(std::string slicesInputFile, const Pointf *center)
     }
 
     BoundingBox bball;
-    bool bballset = false;
     ClipperLib::Paths paths;
     ExPolygons expolygons;
     Polygons polygons;
@@ -615,6 +648,8 @@ Print::add_print_from_slices(std::string slicesInputFile, const Pointf *center)
       saveFormat = alldata[5].i;
       scaling    = alldata[6].d;
       adapt_fac  = scaling/SCALING_FACTOR;
+
+      if (ntool>=numtools) CONFESS_AND_EXIT("file had numtools=%d, but ntool=%d for record %d!", numtools, ntool, r);
       
       //z is not in scaled units (as opposed to the XY coordinates of the actual paths)
       
@@ -634,7 +669,6 @@ Print::add_print_from_slices(std::string slicesInputFile, const Pointf *center)
       //do Z value book-keeping and setup Slic3r object hierarchy
       BoundingBox &bb      = bbs[ntool];
       bool sameZAsPrevious = false;
-      bool thisbbset       = bbset[ntool];
       if (firstTime[ntool]) {
           //prepare object without proper bb
           minz[ntool] =  INFINITY;
@@ -672,7 +706,7 @@ Print::add_print_from_slices(std::string slicesInputFile, const Pointf *center)
                 ++dit;
               }
               
-              if (thisbbset) {
+              if (bb.defined) {
                 if (p->X<bb.min.x) bb.min.x = p->X;
                 if (p->X>bb.max.x) bb.max.x = p->X;
                 if (p->Y<bb.min.y) bb.min.y = p->Y;
@@ -682,9 +716,9 @@ Print::add_print_from_slices(std::string slicesInputFile, const Pointf *center)
                 bb.max.x = p->X;
                 bb.min.y = p->Y;
                 bb.max.y = p->Y;
-                thisbbset = true;
+                bb.defined = true;
               }
-              if (bballset) {
+              if (bball.defined) {
                 if (p->X<bball.min.x) bball.min.x = p->X;
                 if (p->X>bball.max.x) bball.max.x = p->X;
                 if (p->Y<bball.min.y) bball.min.y = p->Y;
@@ -694,12 +728,11 @@ Print::add_print_from_slices(std::string slicesInputFile, const Pointf *center)
                 bball.max.x = p->X;
                 bball.min.y = p->Y;
                 bball.max.y = p->Y;
-                bballset = true;
+                bball.defined = true;
               }
           }
           if (!isInt64) dpath.clear();
       }
-      bbset[ntool] = thisbbset;
       
       //convert to Slic3r data format
       ClipperPaths_to_Slic3rExPolygons(paths, &expolygons);
@@ -733,16 +766,7 @@ Print::add_print_from_slices(std::string slicesInputFile, const Pointf *center)
       //do Z limits book-keeping and setup Slic3r data holder object
       LayerRegion* currentlayerregion;
       if (!sameZAsPrevious) {
-          /* //INCORRECT: neither radiusZ nor radiusX have anything to do with actual Z slice values!!!
-          if (useSched) {
-            minZ = z - radiusZ[ntool];
-            maxZ = z + radiusZ[ntool];
-          } else {
-            minZ = z - radiusX[ntool];
-            maxZ = z + radiusX[ntool];
-          }
-          height = maxZ-minZ;*/
-          if (!getZLimits(ntool, z, zss, useSched, radiusX, radiusZ, height, minZ, maxZ)) CONFESS_AND_EXIT("Could not find z=%f for record %d", z, r);
+          if (!getZLimits(ntool, z, voxels, zss, useSched, height, minZ, maxZ)) CONFESS_AND_EXIT("Could not find z=%f for record %d", z, r);
           
           if (minZ<minz[ntool]) minz[ntool] = minZ;
           if (maxZ>maxz[ntool]) maxz[ntool] = maxZ;
@@ -760,9 +784,9 @@ Print::add_print_from_slices(std::string slicesInputFile, const Pointf *center)
             };
             if (addEmptyInitialLayer) {
 #ifdef DEBUG_IMPORT_PATHS
-              printf("ADDING EMPTY LAYER: record %d, ntool=%d, id=%d, height=%g, maxZ=%g, z=%g\n", r, ntool, layerIds[ntool], height, maxZ-height, z-height);
+              printf("ADDING EMPTY LAYER: record %d, ntool=%d, id=%d, height=%g, maxZ=%g, z=%g\n", r, ntool, layerIds[ntool], height, maxZ-height, minZ-height/2);
 #endif
-              obj->add_layer(layerIds[ntool]++, height, maxZ-height, z-height);
+              obj->add_layer(layerIds[ntool]++, height, maxZ-height, minZ-height/2);
             }
           }
 #ifdef DEBUG_IMPORT_PATHS
@@ -772,7 +796,7 @@ Print::add_print_from_slices(std::string slicesInputFile, const Pointf *center)
             printf("    ->BOUNDINGBOX UNSCALE: XMIN=%g, XMAX=%g, YMIN=%g, YMAX=%g\n", unscale(bbAll1.min.x), unscale(bbAll1.max.x), unscale(bbAll1.min.y), unscale(bbAll1.max.y));
           }
 #endif
-          Layer * layer = obj->add_layer(layerIds[ntool]++, height, maxZ, z);
+          Layer * layer = obj->add_layer(layerIds[ntool]++, height, maxZ, minZ+height/2);
           int lc = obj->layer_count();
           if (lc>=2) {
               obj->get_layer(lc-2)->upper_layer = obj->get_layer(lc-1);
@@ -790,7 +814,7 @@ Print::add_print_from_slices(std::string slicesInputFile, const Pointf *center)
           }
       } else {
 #ifdef DEBUG_IMPORT_PATHS
-              printf("ADDING SLICE TO EXISTING LAYER: record %d, ntool=%d, id=%d, height=%g, maxZ=%g, z=%g\n", r, ntool, layerIds[ntool], height, maxZ-height, z-height);
+              printf("ADDING SLICE TO EXISTING LAYER: record %d, ntool=%d, id=%d, height=%g, maxZ=%g, z=%g\n", r, ntool, layerIds[ntool], height, maxZ, z);
 #endif
           currentlayerregion = layerregions[ntool];
       }
@@ -813,15 +837,18 @@ Print::add_print_from_slices(std::string slicesInputFile, const Pointf *center)
 #endif
     //apply BoundingBoxes and extruder configurations to Slic3r objects
     for (int ntool=0; ntool<numtools; ++ntool) {
-        BoundingBox &bb = bbs[ntool];
+        BoundingBox &bb  = bbs[ntool];
         BoundingBoxf3 bbf3;
-        bbf3.min.x      = unscale(bb.min.x);
-        bbf3.min.y      = unscale(bb.min.y);
-        bbf3.max.z      = maxz[ntool];
-        bbf3.max.x      = unscale(bb.max.x);
-        bbf3.max.y      = unscale(bb.max.y);
-        bbf3.min.z      = minz[ntool];
-        Size size       = bb.size();
+        Size size;
+        if (bb.defined) { //if !defined, all coordinates/sizes are 0
+          bbf3.min.x     = unscale(bb.min.x);
+          bbf3.min.y     = unscale(bb.min.y);
+          bbf3.max.z     = maxz[ntool];
+          bbf3.max.x     = unscale(bb.max.x);
+          bbf3.max.y     = unscale(bb.max.y);
+          bbf3.min.z     = minz[ntool];
+          size           = bb.size();
+        }
         
         PrintObject *obj = printobjects[ntool];
         PrintRegion *reg = printregions[ntool];
