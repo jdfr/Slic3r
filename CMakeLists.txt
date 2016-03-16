@@ -32,6 +32,10 @@ endif()
 
 PROJECT(slic3r)
 
+if(NOT(CMAKE_SIZEOF_VOID_P EQUAL 8))
+  message(FATAL_ERROR "This code is designed only for x64 systems! Size of void pointer: " ${CMAKE_SIZEOF_VOID_P})
+endif()
+
 if (NOT CMAKE_BUILD_TYPE)
   SET(CMAKE_BUILD_TYPE "Release" CACHE STRING "Release type")
 endif()
