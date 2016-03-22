@@ -228,17 +228,18 @@ int main(int argc, char **argv) {
   
   Slic3r::BoundingBoxf3 bb = mesh->bounding_box();
 
-  double limits[6];
-  limits[0] = bb.min.x;
-  limits[1] = bb.max.x;
-  limits[2] = bb.min.y;
-  limits[3] = bb.max.y;
-  limits[4] = bb.min.z;
-  limits[5] = bb.max.z;
+  double doublesToSend[7];
+  doublesToSend[0] = bb.min.x;
+  doublesToSend[1] = bb.max.x;
+  doublesToSend[2] = bb.min.y;
+  doublesToSend[3] = bb.max.y;
+  doublesToSend[4] = bb.min.z;
+  doublesToSend[5] = bb.max.z;
+  doublesToSend[6] = SCALING_FACTOR;
 
   DEBUGPRINTF("BEFORE MAXZ=%f, MINZ=%f\n", bb.max.z, bb.min.z);
   
-  WRITE_BINARY_NAIVE(&limits, sizeof(double), 6, output);
+  WRITE_BINARY_NAIVE(&doublesToSend, sizeof(double), 7, output);
   fflush(output);
 
   DEBUGPRINTF("AFTER MAXZ, MINZ\n");
