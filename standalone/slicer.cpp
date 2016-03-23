@@ -244,7 +244,8 @@ int main(int argc, char **argv) {
 
   DEBUGPRINTF("AFTER MAXZ, MINZ\n");
       
-  int64 numslices, command;
+  int64 numslices;
+  size_t command;
   
   READ_BINARY_NAIVE(&numslices, sizeof(int64), 1, input);
 
@@ -300,7 +301,7 @@ int main(int argc, char **argv) {
       BENCHGETTICK(t[6]);
 
       //while ((command=getCommand(input)) >= 0) {
-      for (size_t command = 0; command<pathss.size(); ++command) {
+      for (command = 0; command<pathss.size(); ++command) {
         DEBUGPRINTF("BEFORE COMMAND %ld\n", command);
           
         /*if (command>=pathss.size()) {
@@ -339,7 +340,7 @@ int main(int argc, char **argv) {
       expolygonss.reserve(1);
 
       //while ((command=getCommand(input)) >= 0) {
-      for (size_t command = 0; command<zsf.size(); ++command) {
+      for (command = 0; command<zsf.size(); ++command) {
         DEBUGPRINTF("BEFORE COMMAND %ld\n", command);
 
         BENCHGETTICK(tt[0]);
