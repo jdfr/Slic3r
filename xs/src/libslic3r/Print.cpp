@@ -439,7 +439,7 @@ enum InitialLayerMode {InitialLayerTool0, InitialLayerMinimalZ, InitialLayerAlwa
 //#define DEBUG_IMPORT_PATHS
 
 //read all Z values of contours from pathsfile
-bool getZValues(std::vector<VoxelFileSpec> &voxels, ZSpecsByTool &zss, double &minimal_z, std::string &file) {
+bool getZValues(std::vector<bool> &usedTool, std::vector<VoxelFileSpec> &voxels, ZSpecsByTool &zss, double &minimal_z, std::string &file) {
     //open pathsfile
     FILE  *f = fopen(file.c_str(), "rb");
     ClipperLib::cInt numtools, useSched, numRecords;
@@ -454,7 +454,8 @@ bool getZValues(std::vector<VoxelFileSpec> &voxels, ZSpecsByTool &zss, double &m
     if (fread(&numtools, sizeof(numtools), 1, f) != 1) CONFESS_AND_EXIT_VAL(false, "could not read numtools from file!");
     if (fread(&useSched, sizeof(useSched), 1, f) != 1) CONFESS_AND_EXIT_VAL(false, "could not read useSched from file!");
     
-    
+    usedTool.clear();
+    usedTool.resize(numtools, false);
     voxels.clear();
     voxels.resize(numtools);
     for (int i=0; i<numtools; ++i) {
@@ -487,12 +488,16 @@ bool getZValues(std::vector<VoxelFileSpec> &voxels, ZSpecsByTool &zss, double &m
       int numToRead = (int)(headerSize - 2 * sizeof(T64));
       if (numHR<5) CONFESS_AND_EXIT_VAL(false, "slice header too short for record %d", r);
       if (fread(&(alldata[2]), 1, numToRead, f) != numToRead) CONFESS_AND_EXIT_VAL(false, "could not read slice header for record %d", r);
-      if(fseek(f, (long)(totalSize - headerSize), SEEK_CUR)!=0) CONFESS_AND_EXIT_VAL(false, "could not skip slice payload for record %d!", r);
+      ClipperLib::cInt numpaths;
+      if (fread(&numpaths, sizeof(ClipperLib::cInt), 1, f) != 1) CONFESS_AND_EXIT_VAL(false, "could not read number of paths for record %d", r);
+      if(fseek(f, (long)(totalSize - headerSize - sizeof(ClipperLib::cInt)), SEEK_CUR)!=0) CONFESS_AND_EXIT_VAL(false, "could not skip slice payload for record %d!", r);
+
       type       = alldata[2].i;
       ntool      = alldata[3].i;
       z          = alldata[4].d;
       
       if (type==PATHTYPE_PROCESSED_CONTOUR) {
+        if ((ntool>=0) && (!usedTool[ntool])) usedTool[ntool] = numpaths>0;
         ZSpec spec;
         spec.z = z;
         spec.useheight = numHR>7;
@@ -581,8 +586,9 @@ Print::add_print_from_slices(std::string slicesInputFile, const Pointf *center)
      * since we only read the record headers and use fseek() to skim over the record payloads*/
     ZSpecsByTool zss;
     std::vector<VoxelFileSpec> voxels;
+    std::vector<bool> usedTool;
     double minimal_z;
-    if (!getZValues(voxels, zss, minimal_z, slicesInputFile)) EARLY_EXIT;
+    if (!getZValues(usedTool, voxels, zss, minimal_z, slicesInputFile)) EARLY_EXIT;
     
     //open pathsfile
     FILE  *f = fopen(slicesInputFile.c_str(), "rb");
@@ -618,8 +624,10 @@ Print::add_print_from_slices(std::string slicesInputFile, const Pointf *center)
     
     //Slic3r objects must be created in strict order, otherwise Slic3r gets the extruder indexes wrong
     for (int ntool=0; ntool<numtools; ++ntool) {
+      if (usedTool[ntool]) {
           printobjects[ntool] = new PrintObject(this);
           printregions[ntool] = this->add_region();
+      }
     }
 
     BoundingBox bball;
@@ -807,9 +815,11 @@ Print::add_print_from_slices(std::string slicesInputFile, const Pointf *center)
             So, add non-used LayerRegions so the LayerRegion for this Layer has the approperiate id!*/
           for (int nt=0; nt<numtools; ++nt) {
             //the algorithm in Layer::make_perimeters() requires to use all printRegions in each object, otherwise the perimeters end up assigned to the wrong extruder
-            LayerRegion* tmp = layer->add_region(printregions[nt]);
-            if (nt==ntool) {
-              currentlayerregion = layerregions[ntool] = tmp;
+            if (usedTool[nt]) {
+              LayerRegion* tmp = layer->add_region(printregions[nt]);
+              if (nt==ntool) {
+                currentlayerregion = layerregions[ntool] = tmp;
+              }
             }
           }
       } else {
@@ -837,6 +847,7 @@ Print::add_print_from_slices(std::string slicesInputFile, const Pointf *center)
 #endif
     //apply BoundingBoxes and extruder configurations to Slic3r objects
     for (int ntool=0; ntool<numtools; ++ntool) {
+        if (!usedTool[ntool]) continue;
         BoundingBox &bb  = bbs[ntool];
         BoundingBoxf3 bbf3;
         Size size;
