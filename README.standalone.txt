@@ -14,7 +14,7 @@ This is a fork of Slic3r, with two main purposes:
 
 
 ---------------------------------------------
---COMPILING----------------------------------
+--COMPILING COMMAND-LINE STANDALONE SLICER---
 ---------------------------------------------
 
 
@@ -51,3 +51,25 @@ steps:
 9. enjoy!
 
 NOTE: In Windows, if ./setpath.bat sets correctly the path to mingw-64, mk.bat will do steps 4, 5, 6 and 7 automatically, but requires ./bin to not be created yet (otherwise, step 5 can be replayed by setpath.bat and steps 6 and 7 by rmk.bat)
+
+---------------------------------------------
+--COMPILING MODIFIED VERSION OF SLIC3R-------
+---------------------------------------------
+
+Compile as usual with perl Build.PL. The functionality to directly accept slices can be used from the command line (not the GUI):
+
+perl slic3r.pl --load YOUR_CONFIGURATION.ini --import-paths=YOUR_SLICES_FILE.paths x
+
+The 'x' at the end is required.
+
+The configuration file YOUR_CONFIGURATION.ini should be prepared with the same nozzles as the ones used for generating the *.paths file. ALSO, VERY IMPORTANT: all configuration parameters relative to filament dimensions (especially the different *_width parameters) MUST NOT BE IN ABSOLUTE TERMS, BUT BE LEFT AS DEFAULT (0) OR CONFIGURED AS PERCENTAGES. Otherwise, slic3r will likely error, or hang the computer.
+
+The slices file YOUR_SLICES_FILE.paths is the file to read the slices from. The resulting gcode will be in YOUR_SLICES_FILE.gcode.
+
+If you want a Windows redistributable executable, you have lots of options, such as downloading pp from CPAN and doing
+
+pp slic3r.pl -x -o slic3r.exe -M Method::Generate::BuildAll
+
+This will generate an executable named slic3r.exe, which can be used from the command line like this:
+
+slic3r.exe --load YOUR_CONFIGURATION.ini --import-paths=YOUR_SLICES_FILE.paths x
