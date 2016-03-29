@@ -4,11 +4,13 @@ set(SRC ${CMAKE_CURRENT_SOURCE_DIR})
 
 option(ENABLE_SLICER_LOGGING   "enable slicer debug output to file" ON)
 
-if(EXISTS ${SRC}/../clipper)
-  set(CLIPPER_BASE_DIR ${SRC}/../clipper)
-else()
-  #as far as I understand, this will enable users of cmake-gui to set this directory
-  set(CLIPPER_BASE_DIR "" CACHE PATH "tweaked clipper/iopaths base dir")
+set(CLIPPER_BASE_DIR "" CACHE PATH "tweaked clipper/iopaths base dir")
+if("${CLIPPER_BASE_DIR}" STREQUAL "")
+  if (EXISTS ${SRC}/../clipper)
+    set(CLIPPER_BASE_DIR ${SRC}/../clipper)
+  else()
+    message(FATAL_ERROR "Please set the variable CLIPPER_BASE_DIR to the base path to the clipper/iopaths directory")
+  endif()
 endif()
 
 #as far as I understand, this will enable users of cmake-gui to set this directory
