@@ -611,9 +611,14 @@ Print::add_print_from_slices(std::string slicesInputFile, const Pointf *center)
     
     std::vector<T64> alldata;
     
-    std::vector<PrintRegion*> printregions(numtools, NULL);
-    std::vector<PrintObject*> printobjects(numtools, NULL);
-    std::vector<LayerRegion*> layerregions(numtools, NULL);
+    std::vector<PrintRegion*> printregions(numtools);
+    std::vector<PrintObject*> printobjects(numtools);
+    std::vector<LayerRegion*> layerregions(numtools);
+    for (int ntool=0; ntool<numtools; ++ntool) {
+      printregions[ntool] = NULL;
+      printobjects[ntool] = NULL;
+      layerregions[ntool] = NULL;
+    }
     std::vector<BoundingBox> bbs(numtools);
     std::vector<bool> firstTime(numtools, true);
     std::vector<double> minz(numtools);
