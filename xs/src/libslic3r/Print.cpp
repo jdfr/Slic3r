@@ -429,9 +429,10 @@ enum InitialLayerMode {InitialLayerTool0, InitialLayerMinimalZ, InitialLayerAlwa
 #define CONFESS_AND_EXIT(...) {CONFESS(__VA_ARGS__); EARLY_EXIT; }
 #define CONFESS_AND_EXIT_VAL(val, ...) {CONFESS(__VA_ARGS__); return val; }
 //definitions from multiresolution.h
-#define PATHTYPE_RAW_CONTOUR       0
-#define PATHTYPE_PROCESSED_CONTOUR 1
-#define PATHTYPE_TOOLPATH          2
+#define PATHTYPE_RAW_CONTOUR        0
+#define PATHTYPE_PROCESSED_CONTOUR  1
+#define PATHTYPE_TOOLPATH_PERIMETER 2
+#define PATHTYPE_TOOLPATH_INFILLING 3
 #define PATHFORMAT_INT64     0
 #define PATHFORMAT_DOUBLE    1
 #define PATHFORMAT_DOUBLE_3D 2
