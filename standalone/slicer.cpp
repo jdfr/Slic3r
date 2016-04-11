@@ -315,7 +315,7 @@ int main(int argc, char **argv) {
         //WRITE_BINARY_NAIVE(&nbytes, sizeof(int64), 1, output);
 
         
-        if (!iop.writePrefixedClipperPaths(pathss[command], PathOpen)) {
+        if (!iop.writeClipperPaths(pathss[command], PathOpen)) {
             DEBUGPRINTF("ERROR writing to the output in incremental mode!!! Error message <%s> in %s\n", iop.errs[0].message, iop.errs[0].function);
             ret = -1;
             break;
@@ -362,7 +362,7 @@ int main(int argc, char **argv) {
         BENCHGETTICK(tt[1]);
         //int64 nbytes = io_num_bytes(pathss[command], PathOpen);
         //WRITE_BINARY_NAIVE(&nbytes, sizeof(int64), 1, output);
-        if (!iop.writePrefixedClipperPaths(paths, PathOpen)) {
+        if (!iop.writeClipperPaths(paths, PathOpen)) {
             DEBUGPRINTF("ERROR writing to the output!!! Error message <%s> in %s\n", iop.errs[0].message, iop.errs[0].function);
             ret = -1;
             break;
