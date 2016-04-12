@@ -57,6 +57,10 @@ endif()
 # NOGDI            : prevents inclusion of wingdi.h which defines functions Polygon() and Polyline() in global namespace
 ADD_DEFINITIONS(-D_GLIBCXX_USE_C99 -DNOGDI)# -DDEBUG_IOPATHS)
 
+#hope that compiling the code under c++11 brings free performance gains
+#we -std=gnu++11 instead of -std=c++11 because the code breaks on usage of M_PI otherwise (it is not defined in c++11 apparently)
+set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "-std=gnu++11") 
+
 set(MASK "/*.c*") #*.c, *.cc, *.cpp
 file(GLOB_RECURSE poly2tri_c  "${SRC}/xs/src/poly2tri${MASK}") 
 file(GLOB_RECURSE admesh_c    "${SRC}/xs/src/admesh${MASK}")
