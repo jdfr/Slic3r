@@ -49,16 +49,21 @@ std::string
 GCodeWriter::preamble()
 {
     std::ostringstream gcode;
+    _pos.x = 0.0;
+    _pos.y = 0.0;
+    _pos.z = 0.0;
     
     if (FLAVOR_IS_NOT(gcfMakerWare)) {
         gcode << "G21 ; set units to millimeters\n";
-        gcode << "G90 ; use absolute coordinates\n";
+        //gcode << "G90 ; use absolute coordinates\n";
+        gcode << "G91 ; use relative coordinates\n";
     }
     if (FLAVOR_IS(gcfRepRap) || FLAVOR_IS(gcfTeacup)) {
         if (this->config.use_relative_e_distances) {
             gcode << "M83 ; use relative distances for extrusion\n";
         } else {
-            gcode << "M82 ; use absolute distances for extrusion\n";
+            //gcode << "M82 ; use absolute distances for extrusion\n";
+            gcode << "M83 ; use relative distances for extrusion\n";
         }
         gcode << this->reset_e(true);
     }
@@ -285,15 +290,14 @@ GCodeWriter::set_speed(double F, const std::string &comment) const
 std::string
 GCodeWriter::travel_to_xy(const Pointf &point, const std::string &comment)
 {
-    this->_pos.x = point.x;
-    this->_pos.y = point.y;
-    
     std::ostringstream gcode;
-    gcode << "G1 X" << XYZF_NUM(point.x)
-          <<   " Y" << XYZF_NUM(point.y)
+    gcode << "G1 X" << XYZF_NUM(point.x-_pos.x)
+          <<   " Y" << XYZF_NUM(point.y-_pos.y)
           <<   " F" << XYZF_NUM(this->config.travel_speed.value * 60.0);
     COMMENT(comment);
     gcode << "\n";
+    this->_pos.x = point.x;
+    this->_pos.y = point.y;
     return gcode.str();
 }
 
@@ -313,15 +317,15 @@ GCodeWriter::travel_to_xyz(const Pointf3 &point, const std::string &comment)
     /*  In all the other cases, we perform an actual XYZ move and cancel
         the lift. */
     this->_lifted = 0;
-    this->_pos = point;
     
     std::ostringstream gcode;
-    gcode << "G1 X" << XYZF_NUM(point.x)
-          <<   " Y" << XYZF_NUM(point.y)
-          <<   " Z" << XYZF_NUM(point.z)
+    gcode << "G1 X" << XYZF_NUM(point.x-_pos.x)
+          <<   " Y" << XYZF_NUM(point.y-_pos.y)
+          <<   " Z" << XYZF_NUM(point.z-_pos.z)
           <<   " F" << XYZF_NUM(this->config.travel_speed.value * 60.0);
     COMMENT(comment);
     gcode << "\n";
+    this->_pos = point;
     return gcode.str();
 }
 
@@ -346,13 +350,13 @@ GCodeWriter::travel_to_z(double z, const std::string &comment)
 std::string
 GCodeWriter::_travel_to_z(double z, const std::string &comment)
 {
-    this->_pos.z = z;
     
     std::ostringstream gcode;
-    gcode << "G1 Z" << XYZF_NUM(z)
+    gcode << "G1 Z" << XYZF_NUM(z-_pos.z)
           <<   " F" << XYZF_NUM(this->config.travel_speed.value * 60.0);
     COMMENT(comment);
     gcode << "\n";
+    this->_pos.z = z;
     return gcode.str();
 }
 
@@ -372,33 +376,31 @@ GCodeWriter::will_move_z(double z) const
 std::string
 GCodeWriter::extrude_to_xy(const Pointf &point, double dE, const std::string &comment)
 {
+    std::ostringstream gcode;
+    gcode << "G1 X" << XYZF_NUM(point.x-_pos.x)
+          <<   " Y" << XYZF_NUM(point.y-_pos.y)
+          <<    " " << this->_extrusion_axis << E_NUM(dE);
+    COMMENT(comment);
+    gcode << "\n";
     this->_pos.x = point.x;
     this->_pos.y = point.y;
     this->_extruder->extrude(dE);
-    
-    std::ostringstream gcode;
-    gcode << "G1 X" << XYZF_NUM(point.x)
-          <<   " Y" << XYZF_NUM(point.y)
-          <<    " " << this->_extrusion_axis << E_NUM(this->_extruder->E);
-    COMMENT(comment);
-    gcode << "\n";
     return gcode.str();
 }
 
 std::string
 GCodeWriter::extrude_to_xyz(const Pointf3 &point, double dE, const std::string &comment)
 {
+    std::ostringstream gcode;
+    gcode << "G1 X" << XYZF_NUM(point.x-_pos.x)
+          <<   " Y" << XYZF_NUM(point.y-_pos.y)
+          <<   " Z" << XYZF_NUM(point.z-_pos.z)
+          <<    " " << this->_extrusion_axis << E_NUM(dE);
+    COMMENT(comment);
+    gcode << "\n";
     this->_pos = point;
     this->_lifted = 0;
     this->_extruder->extrude(dE);
-    
-    std::ostringstream gcode;
-    gcode << "G1 X" << XYZF_NUM(point.x)
-          <<   " Y" << XYZF_NUM(point.y)
-          <<   " Z" << XYZF_NUM(point.z)
-          <<    " " << this->_extrusion_axis << E_NUM(this->_extruder->E);
-    COMMENT(comment);
-    gcode << "\n";
     return gcode.str();
 }
 
