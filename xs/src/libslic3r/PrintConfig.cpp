@@ -1239,7 +1239,7 @@ PrintConfigDef::PrintConfigDef()
     def->sidetext = "mm/s";
     def->cli = "travel-speed=f";
     def->aliases.push_back("travel_feed_rate");
-    def->min = 1;
+    def->min = 1e-9;
     def->default_value = new ConfigOptionFloat(130);
 
     def = this->add("use_firmware_retraction", coBool);
