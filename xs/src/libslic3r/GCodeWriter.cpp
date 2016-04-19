@@ -291,11 +291,12 @@ std::string
 GCodeWriter::travel_to_xy(const Pointf &point, const std::string &comment)
 {
     std::ostringstream gcode;
-    gcode << "G1 X" << XYZF_NUM(point.x-_pos.x)
+    gcode << ";TRAVEL_START_XY\n"
+          << "G1 X" << XYZF_NUM(point.x-_pos.x)
           <<   " Y" << XYZF_NUM(point.y-_pos.y)
           <<   " F" << XYZF_NUM(this->config.travel_speed.value * 60.0);
     COMMENT(comment);
-    gcode << "\n";
+    gcode << "\n;TRAVEL_END_XY\n";
     this->_pos.x = point.x;
     this->_pos.y = point.y;
     return gcode.str();
@@ -319,12 +320,13 @@ GCodeWriter::travel_to_xyz(const Pointf3 &point, const std::string &comment)
     this->_lifted = 0;
     
     std::ostringstream gcode;
-    gcode << "G1 X" << XYZF_NUM(point.x-_pos.x)
+    gcode << ";TRAVEL_START_XYZ\n"
+          << "G1 X" << XYZF_NUM(point.x-_pos.x)
           <<   " Y" << XYZF_NUM(point.y-_pos.y)
           <<   " Z" << XYZF_NUM(point.z-_pos.z)
           <<   " F" << XYZF_NUM(this->config.travel_speed.value * 60.0);
     COMMENT(comment);
-    gcode << "\n";
+    gcode << "\n;TRAVEL_END_XYZ\n";
     this->_pos = point;
     return gcode.str();
 }
