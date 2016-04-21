@@ -23,6 +23,7 @@ In Windows, Slic3r's C++ sources do not compile at the moment in Visual Studio, 
 steps:
 
 1. If it is not already at ../clipper, download or clone git repo at https://github.com/jdfr/clipper to have correctly placed the following files:
+      ../clipper/allocation_schemes.hpp
       ../clipper/clipper.hpp
       ../clipper/clipper.cpp
       ../clipper/iopaths/common.hpp
@@ -56,13 +57,30 @@ NOTE: In Windows, if ./setpath.bat sets correctly the path to mingw-64, mk.bat w
 --COMPILING MODIFIED VERSION OF SLIC3R-------
 ---------------------------------------------
 
-Compile as usual with perl Build.PL. The functionality to directly accept slices can be used from the command line (not the GUI):
+Currently, the libslic3r sources are out of sync with respect to the version of ClipperLib hard-coded into the Slic3r repository, so the project cannot be compiled outright. To fix the compilation process, do the following:
+  -remove the following files:
+    *Slic3r/xs/src/clipper.hpp
+    *Slic3r/xs/src/clipper.cpp
+  -if not already downloaded for the command-line version, download modified ClipperLib repository from https://github.com/jdfr/clipper
+  -from the downloaded repository, copy the following files to the folder Slic3r/xs/src:
+    *clipper/clipper/allocation_schemes.hpp
+    *clipper/clipper/clipper.hpp
+    *clipper/clipper/clipper.cpp
+  
+After fixing that, compile as usual with the following commands:
+
+perl Build.PL
+perl Build.PL --gui      (if you want to have the Slic3r GUI)
+
+The functionality to directly accept slices can be used from the command line (not the GUI):
 
 perl slic3r.pl --load YOUR_CONFIGURATION.ini --import-paths=YOUR_SLICES_FILE.paths x
 
 The 'x' at the end is required.
 
-The configuration file YOUR_CONFIGURATION.ini should be prepared with the same nozzles as the ones used for generating the *.paths file. ALSO, VERY IMPORTANT: all configuration parameters relative to filament dimensions (especially the different *_width parameters) MUST NOT BE IN ABSOLUTE TERMS, BUT BE LEFT AS DEFAULT (0) OR CONFIGURED AS PERCENTAGES. Otherwise, slic3r will likely error, or hang the computer.
+The configuration file YOUR_CONFIGURATION.ini should be prepared with the same nozzles as the ones used for generating the *.paths file.
+
+ALSO, VERY IMPORTANT: all configuration parameters relative to filament dimensions (especially the different *_width parameters) MUST NOT BE IN ABSOLUTE TERMS, BUT BE LEFT AS DEFAULT (0) OR CONFIGURED AS PERCENTAGES. Otherwise, slic3r will likely error out, or hang the computer.
 
 The slices file YOUR_SLICES_FILE.paths is the file to read the slices from. The resulting gcode will be in YOUR_SLICES_FILE.gcode.
 

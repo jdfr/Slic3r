@@ -3,6 +3,8 @@ CMAKE_MINIMUM_REQUIRED(VERSION 2.8.0)
 set(SRC ${CMAKE_CURRENT_SOURCE_DIR})
 
 option(ENABLE_SLICER_LOGGING   "enable slicer debug output to file" ON)
+option(CLIPPER_USE_ARENA       "enable ArenaMemoryManager for ClipperLib" OFF)
+set(INITIAL_ARENA_SIZE "52428800" CACHE STRING "Initial size for ArenaMemoryManager")
 
 set(CLIPPER_BASE_DIR "" CACHE PATH "tweaked clipper/iopaths base dir")
 if("${CLIPPER_BASE_DIR}" STREQUAL "")
@@ -33,11 +35,12 @@ set(clipper_include_dir ${CLIPPER_BASE_DIR}/clipper)
 set(iopaths_include_dir ${CLIPPER_BASE_DIR}/iopaths)
 set(clipper_source ${clipper_include_dir}/clipper.cpp)
 set(clipper_header ${clipper_include_dir}/clipper.hpp)
+set(alloc_header   ${clipper_include_dir}/allocation_schemes.hpp)
 set(iopaths_source ${iopaths_include_dir}/iopaths.cpp)
 set(iopaths_header ${iopaths_include_dir}/iopaths.hpp)
 set(common_header  ${iopaths_include_dir}/common.hpp)
 
-if(NOT EXISTS ${clipper_source} OR NOT EXISTS ${iopaths_source} OR NOT EXISTS ${clipper_header} OR NOT EXISTS ${iopaths_header} OR NOT EXISTS ${common_header})
+if(NOT EXISTS ${clipper_source} OR NOT EXISTS ${iopaths_source} OR NOT EXISTS ${clipper_header} OR NOT EXISTS ${iopaths_header} OR NOT EXISTS ${common_header} OR NOT EXISTS ${alloc_header})
   message(FATAL_ERROR "tweaked clipper/iopaths base dir does not contain the expected files and directories!!!")
 endif()
 
@@ -55,11 +58,16 @@ endif()
 #are specific to the perl build, so they are not included here)
 # _GLIBCXX_USE_C99 : to get the long long type for g++
 # NOGDI            : prevents inclusion of wingdi.h which defines functions Polygon() and Polyline() in global namespace
-ADD_DEFINITIONS(-D_GLIBCXX_USE_C99 -DNOGDI)# -DDEBUG_IOPATHS)
+ADD_DEFINITIONS(-DSLIC3R_STANDALONE_TOOL -D_GLIBCXX_USE_C99 -DNOGDI)# -DDEBUG_IOPATHS)
 
 #hope that compiling the code under c++11 brings free performance gains
 #we -std=gnu++11 instead of -std=c++11 because the code breaks on usage of M_PI otherwise (it is not defined in c++11 apparently)
 set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "-std=gnu++11") 
+
+if (CLIPPER_USE_ARENA)
+  #definition CLIPPER_ALLOCATOR_CXX11 is interpreted as being able to use C++11 features
+  ADD_DEFINITIONS(-DCLIPPER_USE_ARENA -DCLIPPER_ALLOCATOR_CXX11 -DINITIAL_ARENA_SIZE=${INITIAL_ARENA_SIZE})
+endif()
 
 set(MASK "/*.c*") #*.c, *.cc, *.cpp
 file(GLOB_RECURSE poly2tri_c  "${SRC}/xs/src/poly2tri${MASK}") 

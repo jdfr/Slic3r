@@ -80,11 +80,6 @@ Slic3r::ExPolygons offset2_ex(const Slic3r::Polygons &polygons, const float delt
     const float delta2, double scale = 100000, ClipperLib::JoinType joinType = ClipperLib::jtMiter, 
     double miterLimit = 3);
 
-template <class T>
-void _clipper_do(ClipperLib::ClipType clipType, const Slic3r::Polygons &subject, 
-    const Slic3r::Polygons &clip, T* retval, bool safety_offset_);
-void _clipper_do(ClipperLib::ClipType clipType, const Slic3r::Polylines &subject, 
-    const Slic3r::Polygons &clip, ClipperLib::Paths* retval, bool safety_offset_);
 void _clipper(ClipperLib::ClipType clipType, const Slic3r::Polygons &subject, 
     const Slic3r::Polygons &clip, Slic3r::Polygons* retval, bool safety_offset_);
 void _clipper(ClipperLib::ClipType clipType, const Slic3r::Polygons &subject, 

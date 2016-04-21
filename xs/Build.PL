@@ -133,6 +133,7 @@ my $build = Module::Build::WithXSpp->new(
         cstdlib
         ostream
         sstream
+        allocation_schemes.hpp
         libslic3r/GCodeSender.hpp
     )]
 );
