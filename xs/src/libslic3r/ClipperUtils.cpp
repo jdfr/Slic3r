@@ -28,11 +28,6 @@ minimize the changes required to run with it
   CLIPPER_MMANAGER global_manager(INITIAL_ARENA_SIZE);
 #endif
 
-//this code has to compile below C++11, so we implement std::is_same ourselves
-template<typename T, typename U> struct is_same      { static const bool value = false; };
-template<typename T>             struct is_same<T,T> { static const bool value = true; };  
-
-
 //-----------------------------------------------------------
 // legacy code from Clipper documentation
 void AddOuterPolyNodeToExPolygons(ClipperLib::PolyNode& polynode, Slic3r::ExPolygons* expolygons)
@@ -90,7 +85,7 @@ ClipperPaths_to_Slic3rExPolygons(const ClipperLib::Paths &input, Slic3r::ExPolyg
     
     // perform union
     clipper.AddPaths(input, ClipperLib::ptSubject, true);
-    ClipperLib::PolyTree polytree(clipper);
+    ClipperLib::PolyTree polytree;
     clipper.Execute(ClipperLib::ctUnion, polytree, ClipperLib::pftEvenOdd, ClipperLib::pftEvenOdd);  // offset results work with both EvenOdd and NonZero
     
     // write to ExPolygons object
@@ -371,7 +366,7 @@ void _clipper_do(ClipperLib::Clipper &clipper, const ClipperLib::ClipType clipTy
     clipper.Execute(clipType, *retval, fillType, fillType);
 }
 
-void _clipper_do_to_polytree(ClipperLib::Clipper &clipper, const ClipperLib::ClipType clipType, const Slic3r::Polylines &subject, 
+void _clipper_do(ClipperLib::Clipper &clipper, const ClipperLib::ClipType clipType, const Slic3r::Polylines &subject, 
     const Slic3r::Polygons &clip, ClipperLib::PolyTree* retval, const ClipperLib::PolyFillType fillType,
     const bool safety_offset_)
 {
@@ -412,7 +407,7 @@ void _clipper(ClipperLib::ClipType clipType, const Slic3r::Polygons &subject,
 {
     // perform operation
     ClipperLib::Clipper clipper(global_manager);
-    ClipperLib::PolyTree polytree(clipper);
+    ClipperLib::PolyTree polytree;
     _clipper_do<ClipperLib::PolyTree>(clipper, clipType, subject, clip, &polytree, ClipperLib::pftNonZero, safety_offset_);
     
     // convert into ExPolygons
@@ -425,8 +420,8 @@ void _clipper(ClipperLib::ClipType clipType, const Slic3r::Polylines &subject,
 {
     // perform operation
     ClipperLib::Clipper clipper(global_manager);
-    ClipperLib::PolyTree polytree(clipper);
-    _clipper_do_to_polytree(clipper, clipType, subject, clip, &polytree, ClipperLib::pftNonZero, safety_offset_);
+    ClipperLib::PolyTree polytree;
+    _clipper_do(clipper, clipType, subject, clip, &polytree, ClipperLib::pftNonZero, safety_offset_);
     
     // convert into Polylines
     ClipperLib::Paths output;
@@ -633,9 +628,6 @@ void union_(const Slic3r::Polygons &subject1, const Slic3r::Polygons &subject2, 
     union_(pp, retval, safety_offset);
 }
 
-//it is difficult to rework these functions to conform to the CLIPPER_MMANAGER API.
-//Since they are not used in standalone mode, we just omit them
-#ifndef CLIPPER_USE_ARENA 
 void union_pt(const Slic3r::Polygons &subject, ClipperLib::PolyTree* retval, bool safety_offset_)
 {
     Slic3r::Polygons clip;
@@ -678,7 +670,6 @@ static void traverse_pt(ClipperLib::PolyNodes &nodes, Slic3r::Polygons* retval)
         if ((*it)->IsHole()) retval->back().reverse();  // ccw
     }
 }
-#endif
 
 void simplify_polygons(const Slic3r::Polygons &subject, Slic3r::Polygons* retval, bool preserve_collinear)
 {
@@ -715,7 +706,7 @@ void simplify_polygons(const Slic3r::Polygons &subject, Slic3r::ExPolygons* retv
     Slic3rMultiPoints_to_ClipperPaths(subject, &input_subject);
     
     ClipperLib::Clipper c(global_manager);
-    ClipperLib::PolyTree polytree(c);
+    ClipperLib::PolyTree polytree;
     
     c.PreserveCollinear(true);
     c.StrictlySimple(true);
