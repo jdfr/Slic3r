@@ -449,7 +449,7 @@ bool getZValues(std::vector<bool> &usedTool, std::vector<VoxelFileSpec> &voxels,
     
     fseek(f, 4, SEEK_CUR); //skip "PATH"
     if (fread(&version, sizeof(version), 1, f) != 1) CONFESS_AND_EXIT_VAL(false, "could not read version from file!");
-    if (version != 0) CONFESS_AND_EXIT_VAL(false, "File has non-supported version!!!");
+    if (version > 1) CONFESS_AND_EXIT_VAL(false, "File has non-supported version!!!");
     
     //read file header
     if (fread(&numtools, sizeof(numtools), 1, f) != 1) CONFESS_AND_EXIT_VAL(false, "could not read numtools from file!");
@@ -468,6 +468,14 @@ bool getZValues(std::vector<bool> &usedTool, std::vector<VoxelFileSpec> &voxels,
 #ifdef DEBUG_IMPORT_PATHS
           printf("For tool %d: xrad=%f, zrad=%f, zheight=%f, appPoint=%f\n", i, voxels[i].xrad, voxels[i].zrad, voxels[i].zheight, voxels[i].z_applicationPoint);
 #endif
+        }
+    }
+    
+    if (version > 0) {
+        ClipperLib::cInt numadditionals;
+        if (fread(&numadditionals, sizeof(numadditionals), 1, f) != 1) CONFESS_AND_EXIT_VAL(false, "could not read numadditionals from file!");
+        if (numadditionals > 0) {
+            fseek(f, numadditionals * sizeof(numadditionals), SEEK_CUR); //skip additionals
         }
     }
 
@@ -598,7 +606,7 @@ Print::add_print_from_slices(std::string slicesInputFile, const Pointf *center)
     
     fseek(f, 4, SEEK_CUR); //skip "PATH"
     if (fread(&version, sizeof(version), 1, f) != 1) CONFESS_AND_EXIT("could not read version from file!");
-    if (version != 0) CONFESS_AND_EXIT("File has non-supported version!!!");
+    if (version > 1) CONFESS_AND_EXIT("File has non-supported version!!!");
     
     //read file header
     if (fread(&numtools, sizeof(numtools), 1, f) != 1) CONFESS_AND_EXIT("could not read numtools from file!");
@@ -607,6 +615,14 @@ Print::add_print_from_slices(std::string slicesInputFile, const Pointf *center)
     long numToSkip = sizeof(ClipperLib::cInt)*numtools;
     if (useSched) numToSkip *= 4;
     if (fseek(f, numToSkip, SEEK_CUR)!=0) CONFESS_AND_EXIT("could not skip radiuses in file header!");
+    
+    if (version > 0) {
+        ClipperLib::cInt numadditionals;
+        if (fread(&numadditionals, sizeof(numadditionals), 1, f) != 1) CONFESS_AND_EXIT_VAL(false, "could not read numadditionals from file!");
+        if (numadditionals > 0) {
+            fseek(f, numadditionals * sizeof(numadditionals), SEEK_CUR); //skip additionals
+        }
+    }
 
     if (fread(&numRecords, sizeof(numRecords), 1, f) != 1) CONFESS_AND_EXIT("could not read numRecords from file!");
     
