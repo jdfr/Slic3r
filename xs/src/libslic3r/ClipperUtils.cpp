@@ -26,7 +26,7 @@ minimize the changes required to run with it
   CLIPPER_MMANAGER global_manager;
 #else
   const bool MemoryManagerPrintDebugMessages = false;
-  CLIPPER_MMANAGER global_manager("SLIC3R", MemoryManagerPrintDebugMessages, INITIAL_ARENA_SIZE);
+  CLIPPER_MMANAGER global_manager("SLIC3R", MemoryManagerPrintDebugMessages, BIGCHUNK_ARENA_SIZE, INITIAL_ARENA_SIZE);
 #endif
 
 //-----------------------------------------------------------
