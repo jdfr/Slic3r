@@ -618,7 +618,7 @@ Print::add_print_from_slices(std::string slicesInputFile, const Pointf *center)
     
     if (version > 0) {
         ClipperLib::cInt numadditionals;
-        if (fread(&numadditionals, sizeof(numadditionals), 1, f) != 1) CONFESS_AND_EXIT_VAL(false, "could not read numadditionals from file!");
+        if (fread(&numadditionals, sizeof(numadditionals), 1, f) != 1) CONFESS_AND_EXIT("could not read numadditionals from file!");
         if (numadditionals > 0) {
             fseek(f, numadditionals * sizeof(numadditionals), SEEK_CUR); //skip additionals
         }
