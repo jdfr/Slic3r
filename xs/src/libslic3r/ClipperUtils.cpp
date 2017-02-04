@@ -86,13 +86,12 @@ ClipperPaths_to_Slic3rExPolygons(const ClipperLib::Paths &input, Slic3r::ExPolyg
     
     // perform union
     clipper.AddPaths(input, ClipperLib::ptSubject, true);
-    ClipperLib::PolyTree polytree;
+    ClipperLib::PolyTree *polytree;
     clipper.Execute(ClipperLib::ctUnion, polytree, ClipperLib::pftEvenOdd, ClipperLib::pftEvenOdd);  // offset results work with both EvenOdd and NonZero
     
     // write to ExPolygons object
     output->clear();
-    PolyTreeToExPolygons(polytree, output);
-    ClipperEndOperation(clipper, &polytree);
+    PolyTreeToExPolygons(*polytree, output);
 }
 
 void
@@ -157,7 +156,6 @@ offset(const Slic3r::Polygons &polygons, ClipperLib::Paths* retval, const float 
     }
     co.AddPaths(input, joinType, ClipperLib::etClosedPolygon);
     co.Execute(*retval, (delta*scale));
-    ClipperEndOperation(co);
     
     // unscale output
     scaleClipperPolygons(*retval, 1/scale);
@@ -204,7 +202,6 @@ offset(const Slic3r::Polylines &polylines, ClipperLib::Paths* retval, const floa
     }
     co.AddPaths(input, joinType, ClipperLib::etOpenButt);
     co.Execute(*retval, (delta*scale));
-    ClipperEndOperation(co);
     
     // unscale output
     scaleClipperPolygons(*retval, 1/scale);
@@ -284,13 +281,11 @@ offset2(const Slic3r::Polygons &polygons, ClipperLib::Paths* retval, const float
     ClipperLib::Paths output1;
     co.AddPaths(input, joinType, ClipperLib::etClosedPolygon);
     co.Execute(output1, (delta1*scale));
-    ClipperEndOperation(co);
     
     // perform second offset
     co.Clear();
     co.AddPaths(output1, joinType, ClipperLib::etClosedPolygon);
     co.Execute(*retval, (delta2*scale));
-    ClipperEndOperation(co);
     
     // unscale output
     scaleClipperPolygons(*retval, 1/scale);
@@ -340,7 +335,7 @@ offset2_ex(const Slic3r::Polygons &polygons, const float delta1,
 
 template <class T>
 void _clipper_do(ClipperLib::Clipper &clipper, const ClipperLib::ClipType clipType, const Slic3r::Polygons &subject, 
-    const Slic3r::Polygons &clip, T* retval, const ClipperLib::PolyFillType fillType, const bool safety_offset_)
+    const Slic3r::Polygons &clip, T& retval, const ClipperLib::PolyFillType fillType, const bool safety_offset_)
 {
     // read input
     ClipperLib::Paths input_subject, input_clip;
@@ -364,11 +359,11 @@ void _clipper_do(ClipperLib::Clipper &clipper, const ClipperLib::ClipType clipTy
     clipper.AddPaths(input_clip, ClipperLib::ptClip, true);
     
     // perform operation
-    clipper.Execute(clipType, *retval, fillType, fillType);
+    clipper.Execute(clipType, retval, fillType, fillType);
 }
 
 void _clipper_do(ClipperLib::Clipper &clipper, const ClipperLib::ClipType clipType, const Slic3r::Polylines &subject, 
-    const Slic3r::Polygons &clip, ClipperLib::PolyTree* retval, const ClipperLib::PolyFillType fillType,
+    const Slic3r::Polygons &clip, ClipperLib::PolyTree*& retval, const ClipperLib::PolyFillType fillType,
     const bool safety_offset_)
 {
     // read input
@@ -387,7 +382,7 @@ void _clipper_do(ClipperLib::Clipper &clipper, const ClipperLib::ClipType clipTy
     clipper.AddPaths(input_clip,    ClipperLib::ptClip,    true);
     
     // perform operation
-    clipper.Execute(clipType, *retval, fillType, fillType);
+    clipper.Execute(clipType, retval, fillType, fillType);
 }
 
 void _clipper(ClipperLib::ClipType clipType, const Slic3r::Polygons &subject, 
@@ -396,8 +391,8 @@ void _clipper(ClipperLib::ClipType clipType, const Slic3r::Polygons &subject,
     // perform operation
     ClipperLib::Paths output;
     ClipperLib::Clipper clipper(global_manager);
-    _clipper_do<ClipperLib::Paths>(clipper, clipType, subject, clip, &output, ClipperLib::pftNonZero, safety_offset_);
-    ClipperEndOperation(clipper);
+    _clipper_do<ClipperLib::Paths>(clipper, clipType, subject, clip, output, ClipperLib::pftNonZero, safety_offset_);
+    clipper.Clear();
     
     // convert into Polygons
     ClipperPaths_to_Slic3rMultiPoints(output, retval);
@@ -408,12 +403,11 @@ void _clipper(ClipperLib::ClipType clipType, const Slic3r::Polygons &subject,
 {
     // perform operation
     ClipperLib::Clipper clipper(global_manager);
-    ClipperLib::PolyTree polytree;
-    _clipper_do<ClipperLib::PolyTree>(clipper, clipType, subject, clip, &polytree, ClipperLib::pftNonZero, safety_offset_);
+    ClipperLib::PolyTree *polytree;
+    _clipper_do<ClipperLib::PolyTree*>(clipper, clipType, subject, clip, polytree, ClipperLib::pftNonZero, safety_offset_);
     
     // convert into ExPolygons
-    PolyTreeToExPolygons(polytree, retval);
-    ClipperEndOperation(clipper, &polytree);
+    PolyTreeToExPolygons(*polytree, retval);
 }
 
 void _clipper(ClipperLib::ClipType clipType, const Slic3r::Polylines &subject, 
@@ -421,13 +415,13 @@ void _clipper(ClipperLib::ClipType clipType, const Slic3r::Polylines &subject,
 {
     // perform operation
     ClipperLib::Clipper clipper(global_manager);
-    ClipperLib::PolyTree polytree;
-    _clipper_do(clipper, clipType, subject, clip, &polytree, ClipperLib::pftNonZero, safety_offset_);
+    ClipperLib::PolyTree *polytree;
+    _clipper_do(clipper, clipType, subject, clip, polytree, ClipperLib::pftNonZero, safety_offset_);
     
     // convert into Polylines
     ClipperLib::Paths output;
-    ClipperLib::PolyTreeToPaths(polytree, output);
-    ClipperEndOperation(clipper, &polytree);
+    ClipperLib::PolyTreeToPaths(*polytree, output);
+    clipper.Clear();
     ClipperPaths_to_Slic3rMultiPoints(output, retval);
 }
 
@@ -629,18 +623,18 @@ void union_(const Slic3r::Polygons &subject1, const Slic3r::Polygons &subject2, 
     union_(pp, retval, safety_offset);
 }
 
-void union_pt(const Slic3r::Polygons &subject, ClipperLib::PolyTree* retval, bool safety_offset_)
+void union_pt(ClipperLib::Clipper &clipper, const Slic3r::Polygons &subject, ClipperLib::PolyTree*& retval, bool safety_offset_)
 {
     Slic3r::Polygons clip;
-    ClipperLib::Clipper clipper(global_manager);
-    _clipper_do<ClipperLib::PolyTree>(clipper, ClipperLib::ctUnion, subject, clip, retval, ClipperLib::pftEvenOdd, safety_offset_);
+    _clipper_do<ClipperLib::PolyTree*>(clipper, ClipperLib::ctUnion, subject, clip, retval, ClipperLib::pftEvenOdd, safety_offset_);
 }
 
 void union_pt_chained(const Slic3r::Polygons &subject, Slic3r::Polygons* retval, bool safety_offset_)
 {
-    ClipperLib::PolyTree pt;
-    union_pt(subject, &pt, safety_offset_);
-    traverse_pt(pt.Childs, retval);
+    ClipperLib::Clipper clipper(global_manager);
+    ClipperLib::PolyTree *pt;
+    union_pt(clipper, subject, pt, safety_offset_);
+    traverse_pt(pt->Childs, retval);
 }
 
 static void traverse_pt(ClipperLib::PolyNodes &nodes, Slic3r::Polygons* retval)
@@ -684,7 +678,6 @@ void simplify_polygons(const Slic3r::Polygons &subject, Slic3r::Polygons* retval
         c.StrictlySimple(true);
         c.AddPaths(input_subject, ClipperLib::ptSubject, true);
         c.Execute(ClipperLib::ctUnion, output, ClipperLib::pftNonZero, ClipperLib::pftNonZero);
-        ClipperEndOperation(c);
     } else {
         ClipperLib::SimplifyPolygons(global_manager, input_subject, output, ClipperLib::pftNonZero);
     }
@@ -707,7 +700,7 @@ void simplify_polygons(const Slic3r::Polygons &subject, Slic3r::ExPolygons* retv
     Slic3rMultiPoints_to_ClipperPaths(subject, &input_subject);
     
     ClipperLib::Clipper c(global_manager);
-    ClipperLib::PolyTree polytree;
+    ClipperLib::PolyTree *polytree;
     
     c.PreserveCollinear(true);
     c.StrictlySimple(true);
@@ -715,8 +708,7 @@ void simplify_polygons(const Slic3r::Polygons &subject, Slic3r::ExPolygons* retv
     c.Execute(ClipperLib::ctUnion, polytree, ClipperLib::pftNonZero, ClipperLib::pftNonZero);
     
     // convert into ExPolygons
-    PolyTreeToExPolygons(polytree, retval);
-    ClipperEndOperation(c, &polytree);
+    PolyTreeToExPolygons(*polytree, retval);
 }
 
 void safety_offset(ClipperLib::Paths* paths)
@@ -729,7 +721,6 @@ void safety_offset(ClipperLib::Paths* paths)
     co.MiterLimit = 2;
     co.AddPaths(*paths, ClipperLib::jtMiter, ClipperLib::etClosedPolygon);
     co.Execute(*paths, 10.0 * CLIPPER_OFFSET_SCALE);
-    ClipperEndOperation(co);
     
     // unscale output
     scaleClipperPolygons(*paths, 1.0/CLIPPER_OFFSET_SCALE);

@@ -181,10 +181,12 @@ union_pt(subject, safety_offset = false)
     bool                        safety_offset
     CODE:
         // perform operation
-        ClipperLib::PolyTree polytree;
-        union_pt(subject, &polytree, safety_offset);
+        CLIPPER_MMANAGER global_manager;
+        ClipperLib::Clipper clipper(global_manager);
+        ClipperLib::PolyTree *polytree;
+        union_pt(clipper, subject, polytree, safety_offset);
         
-        RETVAL = polynode_children_2_perl(polytree);
+        RETVAL = polynode_children_2_perl(*polytree);
     OUTPUT:
         RETVAL
 
