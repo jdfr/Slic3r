@@ -17,20 +17,9 @@ if("${CLIPPER_BASE_DIR}" STREQUAL "")
   endif()
 endif()
 
-#as far as I understand, this will enable users of cmake-gui to set this directory
-set(Boost_INCLUDE_DIR "" CACHE PATH "path to boost library")
-
-if("${Boost_INCLUDE_DIR}" STREQUAL "")
-  #try to find boost! first, let's see if we have it in the parent directory
-  if(EXISTS ${SRC}/../boost/boost)
-    set(Boost_INCLUDE_DIR ${SRC}/../boost)
-  else()
-    #try to find it with find_package
-    find_package(Boost 1.59.0 QUIET)
-    if (NOT Boost_FOUND)
-      message(FATAL_ERROR "Error: please set the variable Boost_INCLUDE_DIR to the path to the Boost include directory (Boost 1.59.0 or higher required).")
-    endif()
-  endif()
+find_package(Boost 1.59.0 QUIET COMPONENTS thread system)
+if (NOT Boost_FOUND)
+      message(FATAL_ERROR "Could not find BOOST. You can set BOOST_ROOT to the base directory of BOOST to provide a hint of its location")
 endif()
 
 set(clipper_include_dir ${CLIPPER_BASE_DIR}/clipper)
@@ -86,13 +75,19 @@ list(APPEND slic3r_c ${SRC}/xs/src/polypartition.cpp)
 
 set(slic3r_sources ${admesh_c} ${slic3r_c} ${poly2tri_c})
 
-set (INCLUDE_DIRS ${clipper_include_dir} ${iopaths_include_dir} ${Boost_INCLUDE_DIR} ${SRC}/xs/src ${SRC}/standalone ${SRC}/xs/src/admesh ${SRC}/xs/src/libslic3r ${SRC}/xs/src/poly2tri)
+set (INCLUDE_DIRS ${clipper_include_dir} ${iopaths_include_dir} ${Boost_INCLUDE_DIRS} ${SRC}/xs/src ${SRC}/standalone ${SRC}/xs/src/admesh ${SRC}/xs/src/libslic3r ${SRC}/xs/src/poly2tri)
 include_directories(${INCLUDE_DIRS})
 
 ADD_LIBRARY(slic3r SHARED ${clipper_source} ${iopaths_source} ${slic3r_sources})
 
+if (CMAKE_COMPILER_IS_GNUCC)
+  target_compile_options(slic3r PUBLIC "-Wno-deprecated-declarations")
+endif()
+
+target_link_libraries(slic3r ${Boost_LIBRARIES})
+
 ADD_EXECUTABLE(slicer ${slicer_source})
-target_link_libraries(slicer slic3r)
+target_link_libraries(slicer ${Boost_LIBRARIES} slic3r)
 if (ENABLE_SLICER_LOGGING)
     set_property(TARGET slicer APPEND PROPERTY COMPILE_DEFINITIONS "SLICER_USE_DEBUG_FILE")
 endif()
