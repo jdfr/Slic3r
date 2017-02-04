@@ -7,6 +7,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <fcntl.h>
+#include <boost/thread/detail/tss_hooks.hpp>
 #if defined(_WIN32) || defined(_WIN64)
 #  define INWINDOWS
 #  include <io.h>
@@ -265,7 +266,8 @@ int main(int argc, char **argv) {
   
   BENCHGETTICK(t[4]);
 
-  Slic3r::TriangleMeshSlicer *slicer = new Slic3r::TriangleMeshSlicer(mesh, 0.0);
+  boost::on_process_enter();
+  Slic3r::TriangleMeshSlicer<Z> *slicer = new Slic3r::TriangleMeshSlicer<Z>(mesh, 0.0);
   std::vector<Slic3r::ExPolygons> expolygonss;
   int ret = 0;
   IOPaths iop(output);
@@ -387,6 +389,8 @@ int main(int argc, char **argv) {
       delete slicer;
 
   }
+  boost::on_process_exit();
+
   
   DEBUGPRINTF("FINISHING, command=%ld\n", command);
 
