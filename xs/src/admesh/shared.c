@@ -235,7 +235,7 @@ stl_write_vrml(stl_file *stl, char *file) {
   fclose(fp);
 }
 
-void stl_write_obj (stl_file *stl, char *file) {
+void stl_write_obj (stl_file *stl, const char *file) {
   int i;
   FILE* fp;
 

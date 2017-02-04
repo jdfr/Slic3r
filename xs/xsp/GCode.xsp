@@ -3,6 +3,7 @@
 %{
 #include <xsinit.h>
 #include "libslic3r/GCode.hpp"
+#include "libslic3r/GCode/CoolingBuffer.hpp"
 %}
 
 %name{Slic3r::GCode::AvoidCrossingPerimeters} class AvoidCrossingPerimeters {
@@ -70,6 +71,16 @@
         %code{% THIS->path = *value; %};
 };
 
+%name{Slic3r::GCode::CoolingBuffer} class CoolingBuffer {
+    CoolingBuffer(GCode* gcode)
+        %code{% RETVAL = new CoolingBuffer(*gcode); %};
+    ~CoolingBuffer();
+    Ref<GCode> gcodegen();
+    
+    std::string append(std::string gcode, std::string obj_id, size_t layer_id, float print_z);
+    std::string flush();
+};
+
 %name{Slic3r::GCode} class GCode {
     GCode();
     ~GCode();
@@ -129,9 +140,9 @@
     void set_first_layer(bool value)
         %code{% THIS->first_layer = value; %};
     
-    unsigned int elapsed_time()
+    float elapsed_time()
         %code{% RETVAL = THIS->elapsed_time; %};
-    void set_elapsed_time(unsigned int value)
+    void set_elapsed_time(float value)
         %code{% THIS->elapsed_time = value; %};
     
     bool last_pos_defined();

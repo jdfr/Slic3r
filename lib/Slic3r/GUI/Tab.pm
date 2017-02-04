@@ -1,3 +1,6 @@
+# The "Expert" tab at the right of the main tabbed window.
+# The "Expert" is enabled by File->Preferences dialog.
+
 package Slic3r::GUI::Tab;
 use strict;
 use warnings;
@@ -36,9 +39,9 @@ sub new {
         $self->{presets_choice}->SetFont($Slic3r::GUI::small_font);
         
         # buttons
-        $self->{btn_save_preset} = Wx::BitmapButton->new($self, -1, Wx::Bitmap->new("$Slic3r::var/disk.png", wxBITMAP_TYPE_PNG), 
+        $self->{btn_save_preset} = Wx::BitmapButton->new($self, -1, Wx::Bitmap->new($Slic3r::var->("disk.png"), wxBITMAP_TYPE_PNG), 
             wxDefaultPosition, wxDefaultSize, wxBORDER_NONE);
-        $self->{btn_delete_preset} = Wx::BitmapButton->new($self, -1, Wx::Bitmap->new("$Slic3r::var/delete.png", wxBITMAP_TYPE_PNG), 
+        $self->{btn_delete_preset} = Wx::BitmapButton->new($self, -1, Wx::Bitmap->new($Slic3r::var->("delete.png"), wxBITMAP_TYPE_PNG), 
             wxDefaultPosition, wxDefaultSize, wxBORDER_NONE);
         $self->{btn_save_preset}->SetToolTipString("Save current " . lc($self->title));
         $self->{btn_delete_preset}->SetToolTipString("Delete this preset");
@@ -106,8 +109,11 @@ sub new {
         $self->_on_presets_changed;
     });
     
+    # C++ instance DynamicPrintConfig
     $self->{config} = Slic3r::Config->new;
-    $self->build;
+    # Initialize the DynamicPrintConfig by default keys/values.
+    # Possible %params keys: no_controller
+    $self->build(%params);
     $self->update_tree;
     $self->_update;
     if ($self->hidden_options) {
@@ -285,7 +291,7 @@ sub add_options_page {
     my ($title, $icon, %params) = @_;
     
     if ($icon) {
-        my $bitmap = Wx::Bitmap->new("$Slic3r::var/$icon", wxBITMAP_TYPE_PNG);
+        my $bitmap = Wx::Bitmap->new($Slic3r::var->($icon), wxBITMAP_TYPE_PNG);
         $self->{icons}->Add($bitmap);
         $self->{iconcount}++;
     }
@@ -473,7 +479,7 @@ sub build {
         perimeter_acceleration infill_acceleration bridge_acceleration 
         first_layer_acceleration default_acceleration
         skirts skirt_distance skirt_height min_skirt_length
-        brim_width
+        brim_connections_width brim_width
         support_material support_material_threshold support_material_enforce_layers
         raft_layers
         support_material_pattern support_material_spacing support_material_angle
@@ -531,7 +537,7 @@ sub build {
     }
     
     {
-        my $page = $self->add_options_page('Infill', 'shading.png');
+        my $page = $self->add_options_page('Infill', 'infill.png');
         {
             my $optgroup = $page->new_optgroup('Infill');
             $optgroup->append_single_option_line('fill_density');
@@ -565,6 +571,7 @@ sub build {
         {
             my $optgroup = $page->new_optgroup('Brim');
             $optgroup->append_single_option_line('brim_width');
+            $optgroup->append_single_option_line('brim_connections_width');
         }
     }
     
@@ -737,13 +744,14 @@ sub _update {
     
     my $config = $self->{config};
     
-    if ($config->spiral_vase && !($config->perimeters == 1 && $config->top_solid_layers == 0 && $config->fill_density == 0)) {
+    if ($config->spiral_vase && !($config->perimeters == 1 && $config->top_solid_layers == 0 && $config->fill_density == 0 && $config->infill_only_where_needed == 0 && $config->support_material == 0)) {
         my $dialog = Wx::MessageDialog->new($self,
             "The Spiral Vase mode requires:\n"
             . "- one perimeter\n"
             . "- no top solid layers\n"
             . "- 0% fill density\n"
             . "- no support material\n"
+            . "- no infill where necessary\n"
             . "\nShall I adjust those settings in order to enable Spiral Vase?",
             'Spiral Vase', wxICON_WARNING | wxYES | wxNO);
         if ($dialog->ShowModal() == wxID_YES) {
@@ -752,12 +760,42 @@ sub _update {
             $new_conf->set("top_solid_layers", 0);
             $new_conf->set("fill_density", 0);
             $new_conf->set("support_material", 0);
+            $new_conf->set("infill_only_where_needed", 0);
             $self->load_config($new_conf);
         } else {
             my $new_conf = Slic3r::Config->new;
             $new_conf->set("spiral_vase", 0);
             $self->load_config($new_conf);
         }
+    }
+
+    if ($config->support_material) {
+        # Ask only once.
+        if (! $self->{support_material_overhangs_queried}) {
+            $self->{support_material_overhangs_queried} = 1;
+            if ($config->overhangs != 1) {
+                my $dialog = Wx::MessageDialog->new($self,
+                    "Supports work better, if the following feature is enabled:\n"
+                    . "- Detect bridging perimeters\n"
+                    . "\nShall I adjust those settings for supports?",
+                    'Support Generator', wxICON_WARNING | wxYES | wxNO | wxCANCEL);
+                my $answer = $dialog->ShowModal();
+                my $new_conf = Slic3r::Config->new;
+                if ($answer == wxID_YES) {
+                    # Enable "detect bridging perimeters".
+                    $new_conf->set("overhangs", 1);
+                } elsif ($answer == wxID_NO) {
+                    # Do nothing, leave supports on and "detect bridging perimeters" off.
+                } elsif ($answer == wxID_CANCEL) {
+                    # Disable supports.
+                    $new_conf->set("support_material", 0);
+                    $self->{support_material_overhangs_queried} = 0;
+                }
+                $self->load_config($new_conf);
+            }
+        }
+    } else {
+        $self->{support_material_overhangs_queried} = 0;
     }
     
     if ($config->fill_density == 100
@@ -769,7 +807,7 @@ sub _update {
         
         my $new_conf = Slic3r::Config->new;
         if ($dialog->ShowModal() == wxID_YES) {
-            $new_conf->set("fill_pattern", 1);
+            $new_conf->set("fill_pattern", 'rectilinear');
         } else {
             $new_conf->set("fill_density", 40);
         }
@@ -811,15 +849,15 @@ sub _update {
     $self->get_field($_)->toggle($have_skirt)
         for qw(skirt_distance skirt_height);
     
-    my $have_brim = $config->brim_width > 0;
+    my $have_brim = $config->brim_width > 0 || $config->brim_connections_width;
     # perimeter_extruder uses the same logic as in Print::extruders()
     $self->get_field('perimeter_extruder')->toggle($have_perimeters || $have_brim);
     
     my $have_support_material = $config->support_material || $config->raft_layers > 0;
     my $have_support_interface = $config->support_material_interface_layers > 0;
     $self->get_field($_)->toggle($have_support_material)
-        for qw(support_material_threshold support_material_enforce_layers
-            support_material_pattern support_material_spacing support_material_angle
+        for qw(support_material_threshold support_material_pattern
+            support_material_spacing support_material_angle
             support_material_interface_layers dont_support_bridges
             support_material_extrusion_width support_material_contact_distance);
     $self->get_field($_)->toggle($have_support_material && $have_support_interface)
@@ -851,7 +889,7 @@ sub build {
     my $self = shift;
     
     $self->init_config_options(qw(
-        filament_colour filament_diameter extrusion_multiplier
+        filament_colour filament_diameter filament_notes filament_max_volumetric_speed extrusion_multiplier
         temperature first_layer_temperature bed_temperature first_layer_bed_temperature
         fan_always_on cooling
         min_fan_speed max_fan_speed bridge_fan_speed disable_fan_first_layers
@@ -932,6 +970,27 @@ sub build {
             $optgroup->append_single_option_line('min_print_speed');
         }
     }
+
+    {
+        my $page = $self->add_options_page('Advanced', 'wrench.png');
+        {
+            my $optgroup = $page->new_optgroup('Print speed override');
+            $optgroup->append_single_option_line('filament_max_volumetric_speed', 0);
+        }
+    }
+
+    {
+        my $page = $self->add_options_page('Notes', 'note.png');
+        {
+            my $optgroup = $page->new_optgroup('Notes',
+                label_width => 0,
+            );
+            my $option = $optgroup->get_option('filament_notes', 0);
+            $option->full_width(1);
+            $option->height(250);
+            $optgroup->append_single_option_line($option);
+        }
+    }
 }
 
 sub _update {
@@ -985,9 +1044,10 @@ sub title { 'Printer Settings' }
 
 sub build {
     my $self = shift;
+    my (%params) = @_;
     
     $self->init_config_options(qw(
-        bed_shape z_offset
+        bed_shape z_offset has_heatbed
         gcode_flavor use_relative_e_distances
         serial_port serial_speed
         octoprint_host octoprint_apikey
@@ -1007,7 +1067,7 @@ sub build {
             wxBU_LEFT | wxBU_EXACTFIT);
         $btn->SetFont($Slic3r::GUI::small_font);
         if ($Slic3r::GUI::have_button_icons) {
-            $btn->SetBitmap(Wx::Bitmap->new("$Slic3r::var/cog.png", wxBITMAP_TYPE_PNG));
+            $btn->SetBitmap(Wx::Bitmap->new($Slic3r::var->("cog.png"), wxBITMAP_TYPE_PNG));
         }
         
         my $sizer = Wx::BoxSizer->new(wxHORIZONTAL);
@@ -1054,6 +1114,7 @@ sub build {
                 );
                 $optgroup->append_single_option_line($option);
             }
+            $optgroup->append_single_option_line('has_heatbed');
             $optgroup->on_change(sub {
                 my ($opt_id) = @_;
                 if ($opt_id eq 'extruders_count') {
@@ -1064,6 +1125,7 @@ sub build {
                 }
             });
         }
+        if (!$params{no_controller})
         {
             my $optgroup = $page->new_optgroup('USB/Serial connection');
             my $line = Slic3r::GUI::OptionsGroup::Line->new(
@@ -1073,7 +1135,7 @@ sub build {
             $serial_port->side_widget(sub {
                 my ($parent) = @_;
                 
-                my $btn = Wx::BitmapButton->new($parent, -1, Wx::Bitmap->new("$Slic3r::var/arrow_rotate_clockwise.png", wxBITMAP_TYPE_PNG),
+                my $btn = Wx::BitmapButton->new($parent, -1, Wx::Bitmap->new($Slic3r::var->("arrow_rotate_clockwise.png"), wxBITMAP_TYPE_PNG),
                     wxDefaultPosition, wxDefaultSize, &Wx::wxBORDER_NONE);
                 $btn->SetToolTipString("Rescan serial ports")
                     if $btn->can('SetToolTipString');
@@ -1088,7 +1150,7 @@ sub build {
                     "Test", wxDefaultPosition, wxDefaultSize, wxBU_LEFT | wxBU_EXACTFIT);
                 $btn->SetFont($Slic3r::GUI::small_font);
                 if ($Slic3r::GUI::have_button_icons) {
-                    $btn->SetBitmap(Wx::Bitmap->new("$Slic3r::var/wrench.png", wxBITMAP_TYPE_PNG));
+                    $btn->SetBitmap(Wx::Bitmap->new($Slic3r::var->("wrench.png"), wxBITMAP_TYPE_PNG));
                 }
                 
                 EVT_BUTTON($self, $btn, sub {
@@ -1120,7 +1182,7 @@ sub build {
                 my $btn = Wx::Button->new($parent, -1, "Browse…", wxDefaultPosition, wxDefaultSize, wxBU_LEFT);
                 $btn->SetFont($Slic3r::GUI::small_font);
                 if ($Slic3r::GUI::have_button_icons) {
-                    $btn->SetBitmap(Wx::Bitmap->new("$Slic3r::var/zoom.png", wxBITMAP_TYPE_PNG));
+                    $btn->SetBitmap(Wx::Bitmap->new($Slic3r::var->("zoom.png"), wxBITMAP_TYPE_PNG));
                 }
                 
                 if (!eval "use Net::Bonjour; 1") {
@@ -1128,13 +1190,24 @@ sub build {
                 }
                 
                 EVT_BUTTON($self, $btn, sub {
-                    my $dlg = Slic3r::GUI::BonjourBrowser->new($self);
-                    if ($dlg->ShowModal == wxID_OK) {
-                        my $value = $dlg->GetValue . ":" . $dlg->GetPort;
-                        $self->{config}->set('octoprint_host', $value);
-                        $self->update_dirty;
-                        $self->_on_value_change('octoprint_host', $value);
-                        $self->reload_config;
+                    # look for devices
+                    my $entries;
+                    {
+                        my $res = Net::Bonjour->new('http');
+                        $res->discover;
+                        $entries = [ $res->entries ];
+                    }
+                    if (@{$entries}) {
+                        my $dlg = Slic3r::GUI::BonjourBrowser->new($self, $entries);
+                        if ($dlg->ShowModal == wxID_OK) {
+                            my $value = $dlg->GetValue . ":" . $dlg->GetPort;
+                            $self->{config}->set('octoprint_host', $value);
+                            $self->update_dirty;
+                            $self->_on_value_change('octoprint_host', $value);
+                            $self->reload_config;
+                        }
+                    } else {
+                        Wx::MessageDialog->new($self, 'No Bonjour device found', 'Device Browser', wxOK | wxICON_INFORMATION)->ShowModal;
                     }
                 });
                 
@@ -1147,7 +1220,7 @@ sub build {
                     "Test", wxDefaultPosition, wxDefaultSize, wxBU_LEFT | wxBU_EXACTFIT);
                 $btn->SetFont($Slic3r::GUI::small_font);
                 if ($Slic3r::GUI::have_button_icons) {
-                    $btn->SetBitmap(Wx::Bitmap->new("$Slic3r::var/wrench.png", wxBITMAP_TYPE_PNG));
+                    $btn->SetBitmap(Wx::Bitmap->new($Slic3r::var->("wrench.png"), wxBITMAP_TYPE_PNG));
                 }
                 
                 EVT_BUTTON($self, $btn, sub {
@@ -1239,7 +1312,7 @@ sub build {
     
     $self->{extruder_pages} = [];
     $self->_build_extruder_pages;
-    $self->_update_serial_ports;
+    $self->_update_serial_ports if (!$params{no_controller});
 }
 
 sub _update_serial_ports {
@@ -1341,11 +1414,14 @@ sub _update {
     
     my $config = $self->{config};
     
-    $self->get_field('serial_speed')->toggle($config->get('serial_port'));
-    if ($config->get('serial_speed') && $config->get('serial_port')) {
-        $self->{serial_test_btn}->Enable;
-    } else {
-        $self->{serial_test_btn}->Disable;
+    my $serial_speed = $self->get_field('serial_speed');
+    if ($serial_speed) {
+        $self->get_field('serial_speed')->toggle($config->get('serial_port'));
+        if ($config->get('serial_speed') && $config->get('serial_port')) {
+            $self->{serial_test_btn}->Enable;
+        } else {
+            $self->{serial_test_btn}->Disable;
+        }
     }
     if ($config->get('octoprint_host') && eval "use LWP::UserAgent; 1") {
         $self->{octoprint_host_test_btn}->Enable;
@@ -1378,7 +1454,12 @@ sub _update {
         
         # some options only apply when not using firmware retraction
         $self->get_field($_, $i)->toggle($retraction && !$config->use_firmware_retraction)
-            for qw(retract_speed retract_restart_extra wipe);
+            for qw(retract_restart_extra wipe);
+        
+        # retraction speed is also used by auto-speed pressure regulator, even when
+        # user enabled firmware retraction
+        $self->get_field('retract_speed', $i)->toggle($retraction);
+        
         if ($config->use_firmware_retraction && $config->get_at('wipe', $i)) {
             my $dialog = Wx::MessageDialog->new($self,
                 "The Wipe option is not available when using the Firmware Retraction mode.\n"
