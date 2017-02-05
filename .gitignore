@@ -14,3 +14,5 @@ xs/assertlib*
 local-lib
 bin*
 setpath.bat
+mk.bat
+rmk.bat

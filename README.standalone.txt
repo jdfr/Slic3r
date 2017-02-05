@@ -32,26 +32,22 @@ steps:
 
 2. If it is not already at ../boost, put a copy of boost there (the originally used version is a stripped down copy of Boost 1.055)
 
-3. create and go to subdir bin
+3. Create and go to subdir bin
   mkdir bin
   cd bin
 
-4. in windows, if necessary, download and put on a folder a mingw distribution, for example: http://sourceforge.net/projects/perlmingw/
+4. In windows, you will need mingw-64. It comes with many third-party projects, such as Perl (strawberry perl) or Python (winpython) distributions. You can also download a portable, standalone copy of mingw-64, put it on a folder, and set the PATH so it is visible. For example, if you download http://sourceforge.net/projects/perlmingw/ you will need to also set the path in this way:
+  set SET PATH=%PATH%;PATH_TO_MINGW_64\bin
 
-5. in windows, if necessary, set the path to make mingw work (create or modify setpath.bat accordingly!)
-  set SET PATH=%PATH%;PATH_MINGW_64_BIN_DIR
-
-6. use cmake to generate a makefile
+5. Use cmake to generate a makefile
   cmake .. -G "MinGW Makefiles"
 
-7. run make
+6. Run make
   cmake --build .
 
-8. in windows, if you need to move the executables, please take with it the dlls
+7. In windows, if you need to move the executables, please take with it the C++ runtime DLLs from minw-64's bin directory.
 
-9. enjoy!
-
-NOTE: In Windows, if ./setpath.bat sets correctly the path to mingw-64, mk.bat will do steps 4, 5, 6 and 7 automatically, but requires ./bin to not be created yet (otherwise, step 5 can be replayed by setpath.bat and steps 6 and 7 by rmk.bat)
+8. Enjoy!
 
 ---------------------------------------------
 --COMPILING MODIFIED VERSION OF SLIC3R-------
