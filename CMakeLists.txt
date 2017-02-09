@@ -17,6 +17,8 @@ if("${CLIPPER_BASE_DIR}" STREQUAL "")
   endif()
 endif()
 
+set(BOOST_ROOT                "" CACHE PATH "path prefix to boost library")
+
 find_package(Boost 1.59.0 QUIET COMPONENTS thread system)
 if (NOT Boost_FOUND)
       message(FATAL_ERROR "Could not find BOOST. You can set BOOST_ROOT to the base directory of BOOST to provide a hint of its location")
