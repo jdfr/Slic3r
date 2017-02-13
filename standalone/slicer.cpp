@@ -266,7 +266,11 @@ int main(int argc, char **argv) {
   
   BENCHGETTICK(t[4]);
 
+#if defined(BOOST_HAS_WINTHREADS)
+  //tried to use clever SFINAE techniques to call this only if it is defined. Surely it can be done, but I was not able to solve the compiling errors.
+  //this is simpler, but has the problem that it has to be *manually* kept in sync with the implementation of boost/thread/detail/tss_hooks.hpp
   boost::on_process_enter();
+#endif
   Slic3r::TriangleMeshSlicer<Z> *slicer = new Slic3r::TriangleMeshSlicer<Z>(mesh, 0.0);
   std::vector<Slic3r::ExPolygons> expolygonss;
   int ret = 0;
@@ -389,7 +393,9 @@ int main(int argc, char **argv) {
       delete slicer;
 
   }
+#if defined(BOOST_HAS_WINTHREADS)
   boost::on_process_exit();
+#endif
 
   
   DEBUGPRINTF("FINISHING, command=%ld\n", command);
