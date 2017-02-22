@@ -17,13 +17,6 @@ if("${CLIPPER_BASE_DIR}" STREQUAL "")
   endif()
 endif()
 
-set(BOOST_ROOT                "" CACHE PATH "path prefix to boost library")
-
-find_package(Boost 1.59.0 QUIET COMPONENTS thread system)
-if (NOT Boost_FOUND)
-      message(FATAL_ERROR "Could not find BOOST. You can set BOOST_ROOT to the base directory of BOOST to provide a hint of its location")
-endif()
-
 set(clipper_include_dir ${CLIPPER_BASE_DIR}/clipper)
 set(iopaths_include_dir ${CLIPPER_BASE_DIR}/iopaths)
 set(clipper_source ${clipper_include_dir}/clipper.cpp)
@@ -41,6 +34,12 @@ PROJECT(slic3r)
 
 if(NOT(CMAKE_SIZEOF_VOID_P EQUAL 8))
   message(FATAL_ERROR "This code is designed only for x64 systems! Size of void pointer: " ${CMAKE_SIZEOF_VOID_P})
+endif()
+
+set(BOOST_ROOT                "" CACHE PATH "path prefix to boost library")
+find_package(Boost 1.59.0 QUIET COMPONENTS thread system)
+if (NOT Boost_FOUND)
+      message(FATAL_ERROR "Could not find BOOST. You can set BOOST_ROOT to the base directory of BOOST to provide a hint of its location")
 endif()
 
 if (NOT CMAKE_BUILD_TYPE)
