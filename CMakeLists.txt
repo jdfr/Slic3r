@@ -1,14 +1,9 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 2.8.0)
+CMAKE_MINIMUM_REQUIRED(VERSION 3.0) #maybe it actually requires higher, but at most 3.5...
+
+include(config.cmake)
 
 set(SRC ${CMAKE_CURRENT_SOURCE_DIR})
 
-option(ENABLE_SLICER_LOGGING   "enable slicer debug output to file" ON)
-option(CLIPPER_USE_ARENA       "enable ArenaMemoryManager for ClipperLib" OFF)
-set(INITIAL_ARENA_SIZE "52428800" CACHE STRING "Initial size for ArenaMemoryManager")
-#1-5 MB: 1048576 2097152 3145728 4194304 5242880
-set(BIGCHUNK_ARENA_SIZE "2097152" CACHE STRING "Initial size for ArenaMemoryManager")
-
-set(CLIPPER_BASE_DIR "" CACHE PATH "tweaked clipper/iopaths base dir")
 if("${CLIPPER_BASE_DIR}" STREQUAL "")
   if (EXISTS ${SRC}/../clipper)
     set(CLIPPER_BASE_DIR ${SRC}/../clipper)
@@ -36,7 +31,6 @@ if(NOT(CMAKE_SIZEOF_VOID_P EQUAL 8))
   message(FATAL_ERROR "This code is designed only for x64 systems! Size of void pointer: " ${CMAKE_SIZEOF_VOID_P})
 endif()
 
-set(BOOST_ROOT_PATH           "" CACHE PATH "path prefix to boost library")
 set(BOOST_ROOT "${BOOST_ROOT_PATH}")
 find_package(Boost 1.59.0 QUIET COMPONENTS thread system)
 if (NOT Boost_FOUND)
