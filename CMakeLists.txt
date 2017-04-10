@@ -74,9 +74,7 @@ include_directories(${INCLUDE_DIRS})
 
 ADD_LIBRARY(slic3r SHARED ${clipper_source} ${iopaths_source} ${slic3r_sources})
 
-if (CMAKE_COMPILER_IS_GNUCC)
-  target_compile_options(slic3r PUBLIC "-Wno-deprecated-declarations")
-endif()
+target_compile_options(slic3r PUBLIC "-Wno-deprecated-declarations")
 
 target_link_libraries(slic3r ${Boost_LIBRARIES})
 
