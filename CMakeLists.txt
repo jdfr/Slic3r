@@ -1,5 +1,7 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 3.0) #maybe it actually requires higher, but at most 3.5...
 
+SET(CMAKE_BUILD_TYPE "Release" CACHE STRING "Release type") #this has to be placed before the PROJECT() command...
+
 include(config.cmake)
 
 set(SRC ${CMAKE_CURRENT_SOURCE_DIR})
@@ -36,8 +38,6 @@ find_package(Boost 1.59.0 QUIET COMPONENTS thread system)
 if (NOT Boost_FOUND)
       message(FATAL_ERROR "Could not find BOOST. You can set BOOST_ROOT to the base directory of BOOST to provide a hint of its location")
 endif()
-
-SET(CMAKE_BUILD_TYPE "Release" CACHE STRING "Release type")
 
 #add compiler flags from Slicer/xs/Build.PL (HAS_BOOL and SLIC3RXS
 #are specific to the perl build, so they are not included here)
