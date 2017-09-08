@@ -72,24 +72,24 @@ set(slic3r_sources ${admesh_c} ${slic3r_c} ${poly2tri_c})
 set (INCLUDE_DIRS ${clipper_include_dir} ${iopaths_include_dir} ${Boost_INCLUDE_DIRS} ${SRC}/xs/src ${SRC}/standalone ${SRC}/xs/src/admesh ${SRC}/xs/src/libslic3r ${SRC}/xs/src/poly2tri)
 include_directories(${INCLUDE_DIRS})
 
-ADD_LIBRARY(slic3r SHARED ${clipper_source} ${iopaths_source} ${slic3r_sources})
+ADD_LIBRARY(lslic3r SHARED ${clipper_source} ${iopaths_source} ${slic3r_sources})
 
-target_compile_options(slic3r PUBLIC "-Wno-deprecated-declarations")
+target_compile_options(lslic3r PUBLIC "-Wno-deprecated-declarations")
 
-target_link_libraries(slic3r ${Boost_LIBRARIES})
+target_link_libraries(lslic3r ${Boost_LIBRARIES})
 
 ADD_EXECUTABLE(slicer ${slicer_source})
-target_link_libraries(slicer ${Boost_LIBRARIES} slic3r)
+target_link_libraries(slicer ${Boost_LIBRARIES} lslic3r)
 if (ENABLE_SLICER_LOGGING)
     set_property(TARGET slicer APPEND PROPERTY COMPILE_DEFINITIONS "SLICER_USE_DEBUG_FILE")
 endif()
 
 
 ADD_EXECUTABLE(bb ${bb_source})
-target_link_libraries(bb slic3r)
+target_link_libraries(bb lslic3r)
 
 ADD_EXECUTABLE(zpos ${zpos_source})
-target_link_libraries(zpos slic3r)
+target_link_libraries(zpos lslic3r)
 
 if(${MINGW})
   if (NOT MINGW_DLLS_COPIED)
