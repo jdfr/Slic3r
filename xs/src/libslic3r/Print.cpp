@@ -715,13 +715,15 @@ Print::add_print_from_slices(std::string slicesInputFile, const Pointf *center)
           if (fread(&numpoints, sizeof(ClipperLib::cInt), 1, f)!=1) CONFESS_AND_EXIT("could not read path file, record %d, path %d!", r, pp-paths.begin());
           pp->clear();
           pp->resize(numpoints);
+      }
+      for (ClipperLib::Paths::iterator pp = paths.begin(); pp != paths.end(); ++pp) {
           //read points
           std::vector<ClipperLib::DoublePoint>::iterator dit;
           if (isInt64) {
-            if (fread(&(pp->front()), sizeof(ClipperLib::cInt)*2, numpoints, f)!=numpoints) CONFESS_AND_EXIT("could not read path file, record %d, path %d!", r, pp-paths.begin());
+            if (fread(&(pp->front()), sizeof(ClipperLib::cInt)*2, pp->size(), f)!=pp->size()) CONFESS_AND_EXIT("could not read path file, record %d, path %d!", r, pp-paths.begin());
           } else {
-            dpath.resize(numpoints);
-            if (fread(&(dpath.front()), sizeof(double)*2, numpoints, f)!=numpoints) CONFESS_AND_EXIT("could not read path file, record %d, path %d!", r, pp-paths.begin());
+            dpath.resize(pp->size());
+            if (fread(&(dpath.front()), sizeof(double)*2, pp->size(), f)!=pp->size()) CONFESS_AND_EXIT("could not read path file, record %d, path %d!", r, pp-paths.begin());
             dit = dpath.begin();
           }
           for (ClipperLib::Path::iterator p = pp->begin(); p != pp->end(); ++p) {
