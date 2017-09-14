@@ -27,7 +27,7 @@ if(NOT EXISTS ${clipper_source} OR NOT EXISTS ${iopaths_source} OR NOT EXISTS ${
   message(FATAL_ERROR "tweaked clipper/iopaths base dir does not contain the expected files and directories!!!")
 endif()
 
-PROJECT(slic3r)
+PROJECT(slic3r_tools)
 
 if(NOT(CMAKE_SIZEOF_VOID_P EQUAL 8))
   message(FATAL_ERROR "This code is designed only for x64 systems! Size of void pointer: " ${CMAKE_SIZEOF_VOID_P})
