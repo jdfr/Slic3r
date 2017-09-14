@@ -4,6 +4,8 @@
 #include "libslic3r.h"
 #include <stdio.h>
 #endif
+#include "utils.hpp" 
+#include <regex>
 
 FILE *STDERRCONFESS=stderr;
 
@@ -41,4 +43,14 @@ confess_at(const char *file, int line, const char *func,
       vfprintf(STDERRCONFESS, pat, args);
       fprintf(STDERRCONFESS, "\n");
     #endif
+}
+
+std::vector<std::string> 
+split_at_regex(const std::string& input, const std::string& regex) {
+    // passing -1 as the submatch index parameter performs splitting
+    std::regex re(regex);
+    std::sregex_token_iterator
+        first{input.begin(), input.end(), re, -1},
+        last;
+    return {first, last};
 }

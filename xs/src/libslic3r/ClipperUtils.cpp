@@ -65,6 +65,7 @@ ClipperPath_to_Slic3rMultiPoint(const ClipperLib::Path &input)
         retval.points.push_back(Point( (*pit).X, (*pit).Y ));
     return retval;
 }
+template Polygon ClipperPath_to_Slic3rMultiPoint<Polygon>(const ClipperLib::Path &input);
 
 template <class T>
 T
@@ -326,6 +327,42 @@ _clipper_do(ClipperLib::Clipper &clipper, const ClipperLib::ClipType clipType, c
     return retval;
 }
 
+// The Clipper library has difficulties processing overlapping polygons.
+// Namely, the function Clipper::JoinCommonEdges() has potentially a terrible time complexity if the output
+// of the operation is of the PolyTree type.
+// This function implements a following workaround:
+// 1) Peform the Clipper operation with the output to Paths. This method handles overlaps in a reasonable time.
+// 2) Run Clipper Union once again to extract the PolyTree from the result of 1).
+inline ClipperLib::PolyTree* _clipper_do_polytree2(ClipperLib::Clipper &clipper, const ClipperLib::ClipType clipType, const Polygons &subject, 
+    const Polygons &clip, const ClipperLib::PolyFillType fillType, const bool safety_offset_)
+{
+    // read input
+    ClipperLib::Paths input_subject = Slic3rMultiPoints_to_ClipperPaths(subject);
+    ClipperLib::Paths input_clip    = Slic3rMultiPoints_to_ClipperPaths(clip);
+    
+    // perform safety offset
+    if (safety_offset_) {
+        if (clipType == ClipperLib::ctUnion) {
+            safety_offset(&input_subject);
+        } else {
+            safety_offset(&input_clip);
+        }
+    }
+    
+    clipper.AddPaths(input_subject, ClipperLib::ptSubject, true);
+    clipper.AddPaths(input_clip,    ClipperLib::ptClip,    true);
+    // Perform the operation with the output to input_subject.
+    // This pass does not generate a PolyTree, which is a very expensive operation with the current Clipper library
+    // if there are overlapping edges.
+    clipper.Execute(clipType, input_subject, fillType, fillType);
+    // Perform an additional Union operation to generate the PolyTree ordering.
+    clipper.Clear();
+    clipper.AddPaths(input_subject, ClipperLib::ptSubject, true);
+    ClipperLib::PolyTree *retval;
+    clipper.Execute(ClipperLib::ctUnion, retval, fillType, fillType);
+    return retval;
+}
+
 ClipperLib::PolyTree*
 _clipper_do_to_polytree(ClipperLib::Clipper &clipper, const ClipperLib::ClipType clipType, const Polylines &subject, 
     const Polygons &clip, const ClipperLib::PolyFillType fillType,
@@ -370,7 +407,7 @@ _clipper_ex(ClipperLib::ClipType clipType, const Polygons &subject,
 {
     // perform operation
     ClipperLib::Clipper clipper(global_manager);
-    ClipperLib::PolyTree *polytree = _clipper_do<ClipperLib::PolyTree*>(clipper, clipType, subject, clip, ClipperLib::pftNonZero, safety_offset_);
+    ClipperLib::PolyTree *polytree = _clipper_do_polytree2(clipper, clipType, subject, clip, ClipperLib::pftNonZero, safety_offset_);
     
     // convert into ExPolygons
     return PolyTreeToExPolygons(polytree);

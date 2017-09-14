@@ -13,6 +13,7 @@ xs/assertlib*
 .init_bundle.ini
 local-lib
 bin*
-setpath.bat
-mk.bat
-rmk.bat
+package/osx/Slic3r*.app
+*.dmg
+*.swp
+*.swo

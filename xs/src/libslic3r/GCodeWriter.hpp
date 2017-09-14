@@ -19,10 +19,14 @@ public:
         : multiple_extruders(false), _extrusion_axis("E"), _extruder(NULL),
             _last_acceleration(0), _last_fan_speed(0), _lifted(0)
         {};
-    Extruder* extruder();
-    std::string extrusion_axis() const;
+    Extruder* extruder() const { return this->_extruder; }
+    std::string extrusion_axis() const { return this->_extrusion_axis; }
     void apply_print_config(const PrintConfig &print_config);
     void set_extruders(const std::vector<unsigned int> &extruder_ids);
+    /// Write any notes provided by the user as comments in the gcode header.
+    std::string notes();
+
+    /// Actually write the preamble information.
     std::string preamble();
     std::string postamble() const;
     std::string set_temperature(unsigned int temperature, bool wait = false, int tool = -1) const;
@@ -46,8 +50,7 @@ public:
     std::string unretract();
     std::string lift();
     std::string unlift();
-    Pointf3 get_position() const;
-    
+    Pointf3 get_position() const { return this->_pos; }
 private:
     std::string _extrusion_axis;
     Extruder* _extruder;

@@ -1,4 +1,5 @@
 #include "GCodeWriter.hpp"
+#include "utils.hpp"
 #include <algorithm>
 #include <iomanip>
 #include <iostream>
@@ -13,18 +14,6 @@
 
 namespace Slic3r {
 
-Extruder*
-GCodeWriter::extruder()
-{
-    return this->_extruder;
-}
-
-std::string
-GCodeWriter::extrusion_axis() const
-{
-    return this->_extrusion_axis;
-}
-
 void
 GCodeWriter::apply_print_config(const PrintConfig &print_config)
 {
@@ -35,9 +24,8 @@ GCodeWriter::apply_print_config(const PrintConfig &print_config)
 void
 GCodeWriter::set_extruders(const std::vector<unsigned int> &extruder_ids)
 {
-    for (std::vector<unsigned int>::const_iterator i = extruder_ids.begin(); i != extruder_ids.end(); ++i) {
+    for (std::vector<unsigned int>::const_iterator i = extruder_ids.begin(); i != extruder_ids.end(); ++i)
         this->extruders.insert( std::pair<unsigned int,Extruder>(*i, Extruder(*i, &this->config)) );
-    }
     
     /*  we enable support for multiple extruder if any extruder greater than 0 is used
         (even if prints only uses that one) since we need to output Tx commands
@@ -46,10 +34,50 @@ GCodeWriter::set_extruders(const std::vector<unsigned int> &extruder_ids)
 }
 
 std::string
+GCodeWriter::notes() 
+{
+    std::ostringstream gcode;
+
+    // Write the contents of the three notes sections
+    // a semicolon at the beginning of each line.
+    if (this->config.notes.getString().size() > 0) {
+        gcode << "; Print Config Notes: \n";
+        std::vector<std::string> temp_line = split_at_regex(this->config.notes.getString(),"\n");
+        for (auto j = temp_line.cbegin(); j != temp_line.cend(); j++) {
+            gcode << "; " << *j << "\n";
+        }
+        gcode << "; \n";
+    }
+
+    for (auto i = this->config.filament_notes.values.cbegin(); i != this->config.filament_notes.values.cend(); i++) {
+        if (i->size() > 0) {
+            gcode << "; Filament notes: \n";
+            std::vector<std::string> temp_line = split_at_regex(*i,"\n");
+            for (auto j = temp_line.cbegin(); j != temp_line.cend(); j++) {
+                gcode << "; " << *j << "\n";
+            }
+            gcode << "; \n";
+        }
+    }
+
+    if (this->config.printer_notes.getString().size() > 0) {
+        gcode << "; Printer Config Notes: \n";
+        std::vector<std::string> temp_line = split_at_regex(this->config.printer_notes.getString(),"\n");
+        for (auto j = temp_line.cbegin(); j != temp_line.cend(); j++) {
+            gcode << "; " << *j << "\n";
+        }
+        gcode << "; \n";
+    }
+
+    return gcode.str();
+}
+
+
+std::string
 GCodeWriter::preamble()
 {
     std::ostringstream gcode;
-    
+
     if (FLAVOR_IS_NOT(gcfMakerWare)) {
         gcode << "G21 ; set units to millimeters\n";
         gcode << "G90 ; use absolute coordinates\n";
@@ -62,7 +90,8 @@ GCodeWriter::preamble()
         }
         gcode << this->reset_e(true);
     }
-    
+
+
     return gcode.str();
 }
 
@@ -343,7 +372,7 @@ GCodeWriter::travel_to_z(double z, const std::string &comment)
         reducing the lift amount that will be used for unlift. */
     if (!this->will_move_z(z)) {
         double nominal_z = this->_pos.z - this->_lifted;
-        this->_lifted = this->_lifted - (z - nominal_z);
+        this->_lifted -= (z - nominal_z);
         return "";
     }
     
@@ -513,10 +542,15 @@ GCodeWriter::lift()
         if (this->_pos.z >= above && (below == 0 || this->_pos.z <= below))
             target_lift = this->config.retract_lift.get_at(this->_extruder->id);
     }
-    if (this->_lifted == 0 && target_lift > 0) {
+    
+    // compare against epsilon because travel_to_z() does math on it
+    // and subtracting layer_height from retract_lift might not give
+    // exactly zero
+    if (std::abs(this->_lifted) < EPSILON && target_lift > 0) {
         this->_lifted = target_lift;
         return this->_travel_to_z(this->_pos.z + target_lift, "lift Z");
     }
+    
     return "";
 }
 
@@ -529,12 +563,6 @@ GCodeWriter::unlift()
         this->_lifted = 0;
     }
     return gcode;
-}
-
-Pointf3
-GCodeWriter::get_position() const
-{
-    return this->_pos;
 }
 
 }

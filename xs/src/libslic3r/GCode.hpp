@@ -89,7 +89,7 @@ class GCode {
     // This value is not quite precise. First it only accouts for extrusion moves and travel moves,
     // it does not account for wipe, retract / unretract moves.
     // second it does not account for the velocity profiles of the printer.
-    float elapsed_time; // seconds
+    float elapsed_time, elapsed_time_bridges, elapsed_time_external; // seconds
     double volumetric_speed;
     
     GCode();
@@ -100,6 +100,7 @@ class GCode {
     void set_extruders(const std::vector<unsigned int> &extruder_ids);
     void set_origin(const Pointf &pointf);
     std::string preamble();
+    std::string notes();
     std::string change_layer(const Layer &layer);
     std::string extrude(const ExtrusionEntity &entity, std::string description = "", double speed = -1);
     std::string extrude(ExtrusionLoop loop, std::string description = "", double speed = -1);
