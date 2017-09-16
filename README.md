@@ -1,3 +1,5 @@
+This is Slic3r's original README. The README for this fork is [here](README.standalone.md).
+
 ![](var/Slic3r_128px.png) Slic3r [![Build Status](https://travis-ci.org/alexrj/Slic3r.svg?branch=master)](https://travis-ci.org/alexrj/Slic3r) [![Build status](https://ci.appveyor.com/api/projects/status/8iqmeat6cj158vo6?svg=true)](https://ci.appveyor.com/project/lordofhyphens/slic3r) [![Build Status](http://osx-build.slic3r.org:8080/buildStatus/icon?job=Slic3r)](http://osx-build.slic3r.org:8080/job/Slic3r)
 ======
 
