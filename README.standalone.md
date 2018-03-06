@@ -11,7 +11,7 @@ This is a fork of Slic3r, with two main purposes:
 ### COMPILING COMMAND-LINE STANDALONE SLICER ###
 
 
-In Windows, Slic3r's C++ sources do not compile at the moment in Visual Studio, so mingw-64 is required. This project can also be compiled in Linux/GCC.
+In Windows, Slic3r's C++ sources do not compile easily in Visual Studio, so mingw-64 is pretty much required (it is NOT intended to be compiled in 32-bit mode!). This project can also be compiled in Linux/GCC.
 
 steps:
 
@@ -21,18 +21,18 @@ slic3r_base_dir/../clipper/clipper/allocation_schemes.hpp
 slic3r_base_dir/../clipper/clipper/clipper.hpp
 slic3r_base_dir/../clipper/clipper/clipper.cpp
 ```
+2. In windows, you will need mingw-64 with a reasonably recent version (gcc 6.3.0 is known to work). It comes with many third-party projects, such as Perl (strawberry perl) or Python (winpython) distributions. You can also download a portable, standalone copy of mingw-64, put it on a folder, and set the PATH so it is visible. For example, if you download http://sourceforge.net/projects/perlmingw/ you will need to also set the path in this way:
+```
+SET PATH=%PATH%;PATH_TO_MINGW_64\bin
+```
+If you are also going to compile the modified (non-standalone) version of Slic3r, in Windows you'll have to install Slic3r Perl. See Slic3r's [Running Slic3r from git](https://github.com/alexrj/Slic3r/wiki/Running-Slic3r-from-git-on-Windows) wiki pages), which will come with a version of mingw-64. Slic3r Perl will add this mingw-64 to the system PATH, so you'll not have to modify it. 
 
-2. If you do not have boost, download a copy (best advice is to follow the recommendations from Slic3r's "Running Slic3r from git" wiki pages).
+2. If you do not have boost, download a copy (at least version 1.63). In linux, the easiest way is to use your distro's package manager. If you are on windows, or want anyway to compile from source, best advice is to follow the recommendations from Slic3r's [Running Slic3r from git](https://github.com/alexrj/Slic3r/wiki/Running-Slic3r-from-git-on-Windows) wiki pages, especially the bit about placing it on c:\dev\boost_1_63, because Slic3r's build script is not always able to use the environment variable BOOST_DIR (not sure why, but it happened to me!). Be sure to remove or rename any previous version of boost in c:\dev (or even any compressed file named boost*), because Slic3r's build script may not use the desired one! When you have downloaded it, compile it with mingw-64 (follow the instructions in the aferomentioned Slic3r's wiki page).
 
 3. Create and go to subdir bin
 ```
 mkdir bin
 cd bin
-```
-
-4. In windows, you will need mingw-64. It comes with many third-party projects, such as Perl (strawberry perl) or Python (winpython) distributions. You can also download a portable, standalone copy of mingw-64, put it on a folder, and set the PATH so it is visible. For example, if you download http://sourceforge.net/projects/perlmingw/ you will need to also set the path in this way:
-```
-SET PATH=%PATH%;PATH_TO_MINGW_64\bin
 ```
 
 5. Use cmake to generate a makefile 
@@ -41,6 +41,7 @@ cmake ..                      #linux
 cmake .. -G "MinGW Makefiles" :windows
 #add the following arguments to the cmake invocation if you are on windows or your copy of boost is not system-wide:
 # -D BOOST_ROOT="path/to/boost/root/directory"
+#In Windows, also add -D Boost_USE_STATIC_LIBS=ON if you are using the [new instructions](https://github.com/alexrj/Slic3r/wiki/Running-Slic3r-from-git-on-Windows) from Slic3r's wiki to use a custom Slic3r Perl and compiling Boost to static libs.
 ```
 
 6. Run make
@@ -48,7 +49,7 @@ cmake .. -G "MinGW Makefiles" :windows
 cmake --build .
 ```
 
-7. In windows, if you need to move the executables, please take with it the C++ runtime DLLs from minw-64's bin directory.
+7. In windows, if you need to move the executables, please take with them the C++ runtime DLLs from minw-64's bin directory. I do not know if there are license issues about distributing these, though.
 
 8. Enjoy!
 
@@ -86,9 +87,9 @@ The 'x' at the end is required.
 
 The configuration file YOUR_CONFIGURATION.ini should be prepared with the same nozzles as the ones used for generating the *.paths file.
 
-ALSO, VERY IMPORTANT: all configuration parameters relative to filament dimensions (especially the different *_width parameters) MUST NOT BE IN ABSOLUTE TERMS, BUT BE LEFT AS DEFAULT (0) OR CONFIGURED AS PERCENTAGES. Otherwise, slic3r will likely error out, or hang the computer.
+ALSO, VERY IMPORTANT: all configuration parameters relative to filament dimensions (especially the different *_width parameters) MUST NOT BE IN ABSOLUTE TERMS, BUT BE LEFT AS DEFAULT (0) OR CONFIGURED AS PERCENTAGES. Otherwise, slic3r will likely error out, or hang the computer. In general, Slic3r does lots of sanity checks, but many of them are disabled when using the --import-paths flag!
 
-The slices file YOUR_SLICES_FILE.paths is the file to read the slices from. The resulting gcode will be in YOUR_SLICES_FILE.gcode.
+The file YOUR_SLICES_FILE.paths is the file to read the slices from. The resulting gcode will be in YOUR_SLICES_FILE.gcode.
 
 If you want a Windows redistributable executable, you have lots of options, such as downloading `pp` from CPAN and doing
 
@@ -101,3 +102,5 @@ This will generate an executable named slic3r.exe, which can be used from the co
 ```
 slic3r.exe --load YOUR_CONFIGURATION.ini --import-paths=YOUR_SLICES_FILE.paths x
 ```
+
+Another option is to use Slic3r's built-in windows packager. It's your call...
